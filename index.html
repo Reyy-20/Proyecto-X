@@ -1,0 +1,2870 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wave Survivor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0a0a0a; color: #fff; font-family: Arial; overflow: hidden; }
+        #gameCanvas { display: block; background: linear-gradient(135deg, #1a1a2e, #16213e); }
+        #topBarrier { position: absolute; top: 60px; left: 0; width: 100%; height: 2px; background: rgba(255, 0, 0, 0.5); pointer-events: none; }
+        .menu { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #0f0f23, #1a1a2e); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; }
+        .menu.hidden { opacity: 0; pointer-events: none; }
+        .game-title { font-size: 4rem; font-weight: bold; margin-bottom: 2rem; background: linear-gradient(45deg, #ff6b6b, #4ecdc4); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .menu-btn { background: linear-gradient(45deg, #667eea, #764ba2); border: none; color: white; padding: 15px 30px; font-size: 1.2rem; border-radius: 10px; cursor: pointer; margin: 10px; }
+        .hud { position: fixed; top: 0; left: 0; right: 0; background: rgba(0,0,0,0.3); padding: 10px; display: flex; justify-content: space-between; z-index: 100; }
+        .stat { display: flex; align-items: center; gap: 10px; margin: 5px; }
+        .progress-bar { width: 150px; height: 20px; background: #333; border-radius: 10px; overflow: hidden; position: relative; }
+        .progress-fill { height: 100%; transition: width 0.3s; }
+        .health-fill { background: linear-gradient(90deg, #ff4444, #ff6666); }
+        .xp-fill { background: linear-gradient(90deg, #4444ff, #6666ff); }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .overlay.show { display: flex; }
+        .modal { background: #1a1a1a; border: 2px solid #444; border-radius: 15px; padding: 30px; text-align: center; max-width: 500px; }
+        /* Tiendas como panel lateral para no cubrir toda la pantalla */
+        #shopOverlay.overlay.show, #fusionOverlay.overlay.show { 
+            justify-content: flex-end; 
+            align-items: center; 
+            background: rgba(0,0,0,0.35); 
+            padding: 20px; 
+        }
+        #shopOverlay .modal, #fusionOverlay .modal { 
+            width: 380px; 
+            max-width: 380px; 
+            max-height: 90vh; 
+            overflow-y: auto; 
+            text-align: left;
+        }
+        .skill-menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 20px 0; }
+        .skill-option { background: #2a2a2a; border: 2px solid #444; border-radius: 10px; padding: 15px; cursor: pointer; }
+        .skill-option:hover { transform: translateY(-2px); }
+        .skill-option.selected { border-color: #4CAF50; background: #2a4a2a; }
+        .skill-option.common { border-color: #9ca3af; }
+        .skill-option.rare { border-color: #3b82f6; box-shadow: 0 0 10px rgba(59,130,246,0.3); }
+        .skill-option.epic { border-color: #8b5cf6; box-shadow: 0 0 15px rgba(139,92,246,0.4); }
+        .skill-option.legendary { border-color: #f59e0b; box-shadow: 0 0 20px rgba(245,158,11,0.5); animation: glow 2s infinite alternate; }
+        @keyframes glow { from { box-shadow: 0 0 20px rgba(245,158,11,0.5); } to { box-shadow: 0 0 30px rgba(245,158,11,0.8); } }
+        .btn { background: #4CAF50; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; margin: 5px; }
+        .level-up-effect { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #4CAF50; font-size: 48px; font-weight: bold; animation: levelUp 2s forwards; pointer-events: none; z-index: 999; }
+        @keyframes levelUp { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1); } }
+        .floating-text { position: fixed; color: #4CAF50; font-weight: bold; animation: floatUp 1s forwards; pointer-events: none; z-index: 997; }
+        @keyframes floatUp { 0% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-50px); } }
+        .damage-flash { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,0,0,0.3); animation: flash 0.2s; pointer-events: none; z-index: 998; }
+        @keyframes flash { 0% { opacity: 1; } 100% { opacity: 0; } }
+        .achievement { position: fixed; top: 20px; right: 20px; background: linear-gradient(45deg, #667eea, #764ba2); padding: 15px; border-radius: 10px; color: white; animation: slideIn 0.5s; z-index: 995; }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        .shop-menu { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin: 20px 0; }
+        .shop-item { background: #2a2a2a; border: 2px solid #444; border-radius: 10px; padding: 15px; cursor: pointer; text-align: center; }
+        .shop-item:hover { transform: translateY(-2px); border-color: #ffd700; }
+        .shop-item.affordable { border-color: #4CAF50; }
+        .shop-item.expensive { border-color: #f44336; opacity: 0.6; cursor: not-allowed; }
+        .shop-item.expensive:hover { transform: none; }
+        .shop-price { color: #ffd700; font-weight: bold; margin-top: 5px; }
+        .shop-name { font-size: 1.1rem; font-weight: bold; margin-bottom: 5px; }
+        .shop-description { font-size: 0.9rem; color: #ccc; }
+        .fusion-menu { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin: 20px 0; }
+        .fusion-option { background: #2a2a2a; border: 2px solid #444; border-radius: 10px; padding: 15px; cursor: pointer; text-align: center; }
+        .fusion-option:hover { transform: translateY(-2px); border-color: #ffd700; }
+        .fusion-option.affordable { border-color: #4CAF50; }
+        .fusion-option.expensive { border-color: #f44336; opacity: 0.6; cursor: not-allowed; }
+        .fusion-option.expensive:hover { transform: none; }
+        .fusion-name { font-size: 1.1rem; font-weight: bold; margin-bottom: 5px; color: #ffd700; }
+        .fusion-description { font-size: 0.9rem; color: #ccc; margin-bottom: 10px; }
+        .fusion-requirements { font-size: 0.8rem; color: #888; }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="topBarrier"></div>
+    
+    <div class="menu" id="mainMenu">
+        <h1 class="game-title">WAVE SURVIVOR</h1>
+        <button class="menu-btn" onclick="startGame()">JUGAR</button>
+        <button class="menu-btn" onclick="showInstructions()">INSTRUCCIONES</button>
+    </div>
+
+    <div class="hud" id="gameHUD" style="display: none;">
+        <div>
+            <div class="stat">Vida: <div class="progress-bar"><div class="progress-fill health-fill" id="healthBar"></div></div> <span id="healthText">100/100</span></div>
+            <div class="stat">XP: <div class="progress-bar"><div class="progress-fill xp-fill" id="xpBar"></div></div> <span id="xpText">0/100</span></div>
+        </div>
+        <div>
+            <div class="stat">Nivel: <span id="levelText">1</span></div>
+            <div class="stat">Puntos: <span id="scoreText">0</span></div>
+            <div class="stat">Dinero: <span id="moneyTextHUD">0</span> 💰</div>
+            <div class="stat">Oleada: <span id="waveText">1</span></div>
+        </div>
+    </div>
+
+    <div class="overlay" id="instructionsOverlay">
+        <div class="modal">
+            <h1>Instrucciones</h1>
+            <p><strong>Controles:</strong></p>
+            <p>• WASD o Flechas: Mover</p>
+            <p>• Espacio: Disparar</p>
+            <p>• T: Abrir/Cerrar Tienda</p>
+            <p>• F: Fusión de Habilidades</p>
+            <p>• Click: Seleccionar habilidades</p>
+            <p><strong>Objetivo:</strong> Sobrevive 100 oleadas</p>
+            <button class="btn" onclick="hideInstructions()">Cerrar</button>
+        </div>
+    </div>
+
+    <div class="overlay" id="gameOverOverlay">
+        <div class="modal">
+            <h1>Game Over</h1>
+            <p id="gameOverText">Has llegado a la oleada 1</p>
+            <button class="btn" onclick="restartGame()">Reiniciar</button>
+            <button class="btn" onclick="backToMenu()">Menú</button>
+        </div>
+    </div>
+
+    <div class="overlay" id="victoryOverlay">
+        <div class="modal">
+            <h1>¡VICTORIA!</h1>
+            <h2>¡Has sobrevivido a las 100 oleadas!</h2>
+            <button class="btn" onclick="restartGame()">Jugar de nuevo</button>
+            <button class="btn" onclick="backToMenu()">Menú</button>
+        </div>
+    </div>
+
+    <div class="overlay" id="skillOverlay">
+        <div class="modal">
+            <h2>¡Subiste de nivel!</h2>
+            <p>Elige una habilidad:</p>
+            <div class="skill-menu" id="skillMenu"></div>
+            <button class="btn" id="confirmSkillBtn" onclick="confirmSkill()" disabled>Confirmar</button>
+        </div>
+    </div>
+
+    <div class="overlay" id="shopOverlay">
+        <div class="modal">
+            <h2>🏪 TIENDA</h2>
+            <p>Dinero: <span id="moneyText">0</span> 💰</p>
+            <div class="shop-menu" id="shopMenu"></div>
+            <button class="btn" onclick="closeShop()">Cerrar (T)</button>
+        </div>
+    </div>
+
+    <div class="overlay" id="fusionOverlay">
+        <div class="modal" style="max-width: 700px;">
+            <h2>⚗️ FUSIÓN DE HABILIDADES</h2>
+            <p>Dinero: <span id="moneyTextFusion">0</span> 💰 | Costo: 50 💰</p>
+            <div id="fusionMenu"></div>
+            <button class="btn" onclick="closeFusion()">Cerrar (F)</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            updateTopBarrierVisual();
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const game = { running: false, wave: 1, maxWaves: 100, score: 0, enemiesKilled: 0, bossesKilled: 0, money: 0 };
+        const player = { x: canvas.width/2, y: canvas.height/2, size: 20, speed: 200, maxHealth: 100, health: 100, level: 1, xp: 0, xpToNext: 120, damage: 1, fireRate: 0.3, bulletSpeed: 400, bulletSize: 4, multiShot: 1, spreadAngle: 0, regeneration: 0, criticalChance: 0, lastShot: 0, lastRegen: 0 };
+        const enemies = [], bullets = [], particles = [], powerUps = [];
+        const walls = [];
+        const hazards = [];
+
+        function getTopBarrierY() {
+            const hud = document.getElementById('gameHUD');
+            if (!hud || hud.style.display === 'none') return 0;
+            const hudRect = hud.getBoundingClientRect();
+            const canvasRect = canvas.getBoundingClientRect();
+            // Distance from top of canvas to bottom of HUD
+            return Math.max(0, hudRect.bottom - canvasRect.top);
+        }
+
+        function updateTopBarrierVisual() {
+            const barrier = document.getElementById('topBarrier');
+            if (!barrier) return;
+            barrier.style.top = getTopBarrierY() + 'px';
+        }
+
+        const skillPool = [
+            { name: "Aumentar Daño", description: "+1 daño", type: "damage", value: 1, rarity: "common", maxLevel: 5 },
+            { name: "Disparo Rápido", description: "-20% cooldown", type: "fireRate", value: 0.8, rarity: "common", maxLevel: 3 },
+            { name: "Velocidad", description: "+25% velocidad", type: "speed", value: 1.25, rarity: "common", maxLevel: 3 },
+            { name: "Vida Extra", description: "+20 vida máxima", type: "maxHealth", value: 20, rarity: "common", maxLevel: 3 },
+            { name: "Regeneración", description: "+1 vida/8seg", type: "regeneration", value: 1, rarity: "common", maxLevel: 3 },
+            { name: "Disparo Doble", description: "2 proyectiles", type: "multiShot", value: 1, rarity: "rare", maxLevel: 1 },
+            { name: "Proyectiles Grandes", description: "+50% tamaño", type: "bulletSize", value: 1.5, rarity: "rare", maxLevel: 2 },
+            { name: "Proyectiles Rápidos", description: "+50% velocidad", type: "bulletSpeed", value: 1.5, rarity: "rare", maxLevel: 2 },
+            { name: "Dispersión", description: "Proyectiles en abanico", type: "spread", value: 0.3, rarity: "rare", maxLevel: 3 },
+            { name: "Disparo Triple", description: "3 proyectiles", type: "multiShot", value: 2, rarity: "epic", maxLevel: 1 },
+            { name: "Golpe Crítico", description: "+10% crítico", type: "criticalChance", value: 0.1, rarity: "epic", maxLevel: 3 },
+            { name: "Proyectiles Explosivos", description: "Explotan al impactar", type: "explosive", value: 1, rarity: "epic", maxLevel: 1 },
+            { name: "Disparo Cuádruple", description: "4 proyectiles", type: "multiShot", value: 3, rarity: "legendary", maxLevel: 1 },
+            { name: "Proyectiles de Fuego", description: "Con estela de fuego", type: "fireTrail", value: 1, rarity: "legendary", maxLevel: 1 },
+            { name: "Aura de Poder", description: "Proyectiles orbitan", type: "orbiting", value: 1, rarity: "legendary", maxLevel: 1 }
+        ];
+
+        // Sistema de fusión de habilidades
+        const skillFusions = {
+            "damage_fireRate": {
+                name: "Arma Infernal",
+                description: "+3 daño y -40% cooldown",
+                type: "mega_damage_fireRate",
+                rarity: "legendary",
+                requirements: ["damage", "fireRate"]
+            },
+            "multiShot_spread": {
+                name: "Tormenta de Proyectiles",
+                description: "5 proyectiles en abanico",
+                type: "mega_multiShot_spread",
+                rarity: "legendary",
+                requirements: ["multiShot", "spread"]
+            },
+            "bulletSize_bulletSpeed": {
+                name: "Proyectiles Balísticos",
+                description: "+100% tamaño y velocidad",
+                type: "mega_bulletSize_speed",
+                rarity: "legendary",
+                requirements: ["bulletSize", "bulletSpeed"]
+            },
+            "criticalChance_damage": {
+                name: "Golpe Mortal",
+                description: "+25% crítico y +5 daño",
+                type: "mega_critical_damage",
+                rarity: "legendary",
+                requirements: ["criticalChance", "damage"]
+            },
+            "speed_regeneration": {
+                name: "Vigor Eterno",
+                description: "+50% velocidad y +5 HP/seg",
+                type: "mega_speed_regen",
+                rarity: "legendary",
+                requirements: ["speed", "regeneration"]
+            },
+            "maxHealth_regeneration": {
+                name: "Fortaleza Divina",
+                description: "+100 vida y +3 HP/seg",
+                type: "mega_health_regen",
+                rarity: "legendary",
+                requirements: ["maxHealth", "regeneration"]
+            }
+        };
+
+        // Variables del jugador para habilidades fusionadas
+        const playerSkills = {
+            damage: 0,
+            fireRate: 0,
+            multiShot: 0,
+            spread: 0,
+            bulletSize: 0,
+            bulletSpeed: 0,
+            criticalChance: 0,
+            speed: 0,
+            regeneration: 0,
+            maxHealth: 0,
+            explosive: false,
+            fireTrail: false,
+            orbiting: false
+        };
+
+        const keys = {};
+        const mouse = { x: 0, y: 0, down: false };
+        let lastShopClick = 0;
+        let lastFusionClick = 0;
+        const weather = { current: 'clear', nextChangeAt: Date.now() + 15000, rainDrops: [], lightnings: [], tornados: [], intensity: 0 };
+
+        function scheduleNextWeather() {
+            weather.nextChangeAt = Date.now() + (10000 + Math.floor(Math.random() * 20000));
+        }
+
+        function setWeather(type) {
+            weather.current = type;
+            if (type === 'clear') {
+                weather.intensity = 0;
+                weather.rainDrops.length = 0;
+                weather.lightnings.length = 0;
+                weather.tornados.length = 0;
+            } else if (type === 'rain') {
+                weather.intensity = 1 + Math.random() * 2; // 1-3
+            } else if (type === 'storm') {
+                weather.intensity = 2 + Math.random() * 2; // 2-4
+            } else if (type === 'tornado') {
+                weather.intensity = 1;
+                spawnTornado();
+            }
+            scheduleNextWeather();
+        }
+
+        function updateWeather(deltaTime) {
+            const now = Date.now();
+            if (now > weather.nextChangeAt) {
+                const roll = Math.random();
+                if (roll < 0.50) setWeather('clear');
+                else if (roll < 0.78) setWeather('rain');
+                else if (roll < 0.92) setWeather('storm');
+                else setWeather('tornado');
+            }
+
+            // Lluvia
+            if (weather.current === 'rain' || weather.current === 'storm') {
+                const topY = getTopBarrierY();
+                const spawnCount = Math.floor(60 * weather.intensity * deltaTime);
+                for (let i = 0; i < spawnCount; i++) {
+                    weather.rainDrops.push({ x: Math.random() * canvas.width, y: topY + Math.random() * 10, vy: 500 + Math.random() * 300, life: 3000 });
+                }
+                for (let i = weather.rainDrops.length - 1; i >= 0; i--) {
+                    const d = weather.rainDrops[i];
+                    d.y += d.vy * deltaTime;
+                    d.life -= deltaTime * 1000;
+                    if (d.y > canvas.height || d.life <= 0) weather.rainDrops.splice(i, 1);
+                }
+            }
+
+            // Rayos en tormenta
+            if (weather.current === 'storm') {
+                if (Math.random() < 0.5 * deltaTime) {
+                    spawnLightning();
+                }
+            }
+
+            // Tornados
+            for (let i = weather.tornados.length - 1; i >= 0; i--) {
+                const t = weather.tornados[i];
+                t.x += t.vx * deltaTime;
+                t.y += t.vy * deltaTime;
+                t.life -= deltaTime * 1000;
+                if (t.life <= 0 || t.x < -t.radius || t.x > canvas.width + t.radius || t.y > canvas.height + t.radius) {
+                    weather.tornados.splice(i, 1);
+                }
+            }
+        }
+
+        function spawnLightning() {
+            const x = 50 + Math.random() * (canvas.width - 100);
+            const y1 = 0;
+            const y2 = getTopBarrierY() + 30 + Math.random() * (canvas.height - (getTopBarrierY() + 60));
+            const bolt = { type: 'lightning', x, y1, y2, life: 250, radius: 40, damage: 15, applied: false };
+            hazards.push(bolt);
+            // flash sutil global
+            showDamageFlash();
+        }
+
+        function spawnTornado() {
+            const side = Math.random() < 0.5 ? -1 : 1;
+            const x = side < 0 ? -60 : canvas.width + 60;
+            const y = getTopBarrierY() + 100 + Math.random() * (canvas.height - (getTopBarrierY() + 200));
+            const vx = side < 0 ? (80 + Math.random() * 80) : -(80 + Math.random() * 80);
+            const vy = (Math.random() - 0.5) * 40;
+            const t = { type: 'tornado', x, y, vx, vy, radius: 60, life: 8000, damage: 20 };
+            weather.tornados.push(t);
+            hazards.push(t);
+        }
+
+        function renderWeatherBackground() {
+            // lluvia detrás de entidades
+            if (weather.current === 'rain' || weather.current === 'storm') {
+                ctx.save();
+                ctx.strokeStyle = weather.current === 'storm' ? 'rgba(180,200,255,0.5)' : 'rgba(180,200,255,0.35)';
+                ctx.lineWidth = 1.2;
+                ctx.beginPath();
+                for (let i = 0; i < weather.rainDrops.length; i++) {
+                    const d = weather.rainDrops[i];
+                    ctx.moveTo(d.x, d.y);
+                    ctx.lineTo(d.x + 6, d.y + 14);
+                }
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        function renderWeatherForeground() {
+            // Rayos
+            for (let i = 0; i < hazards.length; i++) {
+                const hz = hazards[i];
+                if (hz.type === 'lightning') {
+                    const alpha = Math.max(0, hz.life / 250);
+                    ctx.save();
+                    ctx.globalAlpha = 0.7 * alpha;
+                    ctx.strokeStyle = '#ffffcc';
+                    ctx.lineWidth = 3;
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = '#ffffcc';
+                    ctx.beginPath();
+                    ctx.moveTo(hz.x, hz.y1);
+                    // zigzag sencillo
+                    const segments = 6;
+                    let px = hz.x, py = hz.y1;
+                    for (let s = 1; s <= segments; s++) {
+                        const nx = hz.x + (Math.random() - 0.5) * 40;
+                        const ny = hz.y1 + (hz.y2 - hz.y1) * (s / segments);
+                        ctx.lineTo(nx, ny);
+                        px = nx; py = ny;
+                    }
+                    ctx.lineTo(hz.x, hz.y2);
+                    ctx.stroke();
+                    ctx.restore();
+
+                    // Marca de impacto
+                    ctx.save();
+                    ctx.globalAlpha = 0.2 * alpha;
+                    ctx.fillStyle = '#ffffcc';
+                    ctx.beginPath();
+                    ctx.arc(hz.x, hz.y2, hz.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                } else if (hz.type === 'tornado') {
+                    // Render de tornado tipo cono con remolinos
+                    ctx.save();
+                    const grad = ctx.createRadialGradient(hz.x, hz.y, hz.radius*0.2, hz.x, hz.y, hz.radius);
+                    grad.addColorStop(0, 'rgba(200,200,200,0.6)');
+                    grad.addColorStop(1, 'rgba(200,200,200,0.1)');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(hz.x, hz.y, hz.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    // líneas de remolino
+                    ctx.globalAlpha = 0.3;
+                    ctx.strokeStyle = 'rgba(220,220,220,0.6)';
+                    for (let a = 0; a < 5; a++) {
+                        ctx.beginPath();
+                        const r = hz.radius * (0.6 + 0.4 * Math.random());
+                        ctx.arc(hz.x, hz.y, r, 0, Math.PI * 2);
+                        ctx.stroke();
+                    }
+                    ctx.restore();
+                }
+            }
+        }
+
+        const shopItems = [
+            { name: "Poción de Vida", description: "Restaura 50 HP", price: 100, type: "heal", value: 50, icon: "" },
+            { name: "Armadura +1", description: "+20 vida máxima", price: 200, type: "maxHealth", value: 20, icon: "" },
+            { name: "Espada Afilada", description: "+2 daño", price: 300, type: "damage", value: 2, icon: "" },
+            { name: "Botas Rápidas", description: "+25% velocidad", price: 250, type: "speed", value: 1.25, icon: "" },
+            { name: "Gafas de Precisión", description: "+15% crítico", price: 400, type: "criticalChance", value: 0.15, icon: "" },
+            { name: "Arco Múltiple", description: "+1 proyectil", price: 350, type: "multiShot", value: 1, icon: "" },
+            { name: "Poción de Velocidad", description: "-25% cooldown", price: 300, type: "fireRate", value: 0.75, icon: "" },
+            { name: "Anillo de Regeneración", description: "+3 HP/seg", price: 500, type: "regeneration", value: 3, icon: "" }
+        ];
+
+        document.addEventListener('keydown', (e) => { 
+            keys[e.key.toLowerCase()] = true; 
+            if (e.key === ' ') e.preventDefault();
+            if (e.key.toLowerCase() === 't' && game.running) {
+                e.preventDefault();
+                toggleShop();
+            }
+            if (e.key.toLowerCase() === 'f' && game.running) {
+                e.preventDefault();
+                toggleFusion();
+            }
+        });
+        document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+        canvas.addEventListener('mousemove', (e) => { const rect = canvas.getBoundingClientRect(); mouse.x = e.clientX - rect.left; mouse.y = e.clientY - rect.top; });
+        canvas.addEventListener('mousedown', () => mouse.down = true);
+        canvas.addEventListener('mouseup', () => mouse.down = false);
+
+        function distance(x1, y1, x2, y2) { return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2); }
+        function angle(x1, y1, x2, y2) { return Math.atan2(y2 - y1, x2 - x1); }
+        function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+        function random(min, max) { return Math.random() * (max - min) + min; }
+        function checkCollision(obj1, obj2) { const dx = obj1.x - obj2.x; const dy = obj1.y - obj2.y; return Math.sqrt(dx * dx + dy * dy) < (obj1.size + obj2.size) / 2; }
+
+        function shoot() {
+            const now = Date.now();
+            if (now - player.lastShot < player.fireRate * 1000) return;
+            const angleToMouse = angle(player.x, player.y, mouse.x, mouse.y);
+            
+            for (let i = 0; i < player.multiShot; i++) {
+                let bulletAngle = angleToMouse;
+                if (player.multiShot > 1) {
+                    const spread = player.spreadAngle * (i - (player.multiShot - 1) / 2);
+                    bulletAngle += spread;
+                }
+                const isCritical = Math.random() < player.criticalChance;
+                const damage = isCritical ? player.damage * 2 : player.damage;
+                
+                bullets.push({
+                    x: player.x, y: player.y, vx: Math.cos(bulletAngle) * player.bulletSpeed, vy: Math.sin(bulletAngle) * player.bulletSpeed,
+                    size: player.bulletSize, damage: damage, life: 2000, isCritical: isCritical
+                });
+            }
+            player.lastShot = now;
+        }
+
+        // Sistema de enemigos expandido - 60 tipos únicos
+        const enemyTypes = {
+            // Enemigos básicos (1-10)
+            normal: { 
+                base: { health: 1, speed: 80, size: 20, xp: 10, damage: 1 },
+                variants: [
+                    { color: '#ff4444', speed: 1.0, damage: 1.0, health: 1.0, name: 'Rojo Básico' },
+                    { color: '#ff6666', speed: 1.1, damage: 0.9, health: 1.0, name: 'Rojo Rápido' },
+                    { color: '#ff2222', speed: 0.9, damage: 1.2, health: 1.1, name: 'Rojo Fuerte' },
+                    { color: '#ff8888', speed: 1.05, damage: 0.8, health: 1.2, name: 'Rojo Resistente' }
+                ]
+            },
+            fast: { 
+                base: { health: 1, speed: 120, size: 16, xp: 15, damage: 1 },
+                variants: [
+                    { color: '#ff8844', speed: 1.0, damage: 1.0, health: 1.0, name: 'Naranja Veloz' },
+                    { color: '#ffaa66', speed: 1.15, damage: 0.8, health: 0.9, name: 'Naranja Ultrarrápido' },
+                    { color: '#ff6622', speed: 0.95, damage: 1.1, health: 1.1, name: 'Naranja Ágil' },
+                    { color: '#ffcc88', speed: 1.05, damage: 0.9, health: 1.0, name: 'Naranja Esquivo' }
+                ]
+            },
+            tank: { 
+                base: { health: 3, speed: 60, size: 28, xp: 25, damage: 2 },
+                variants: [
+                    { color: '#ff4444', speed: 1.0, damage: 1.0, health: 1.0, name: 'Tanque Rojo' },
+                    { color: '#cc3333', speed: 0.9, damage: 1.2, health: 1.2, name: 'Tanque Pesado' },
+                    { color: '#ff6666', speed: 1.1, damage: 0.9, health: 1.1, name: 'Tanque Móvil' },
+                    { color: '#aa2222', speed: 0.8, damage: 1.3, health: 1.3, name: 'Tanque Blindado' }
+                ]
+            },
+            shooter: { 
+                base: { health: 2, speed: 70, size: 22, xp: 20, damage: 1, canShoot: true },
+                variants: [
+                    { color: '#ff44ff', speed: 1.0, damage: 1.0, health: 1.0, name: 'Tirador Rosa' },
+                    { color: '#ff66ff', speed: 1.1, damage: 0.9, health: 1.0, name: 'Tirador Ágil' },
+                    { color: '#ff22ff', speed: 0.9, damage: 1.2, health: 1.1, name: 'Tirador Pesado' },
+                    { color: '#ff88ff', speed: 1.05, damage: 0.8, health: 1.2, name: 'Tirador Resistente' }
+                ]
+            },
+            explosive: { 
+                base: { health: 2, speed: 90, size: 24, xp: 30, damage: 1, explosive: true },
+                variants: [
+                    { color: '#ffaa00', speed: 1.0, damage: 1.0, health: 1.0, name: 'Explosivo Dorado' },
+                    { color: '#ffcc33', speed: 1.1, damage: 0.9, health: 0.9, name: 'Explosivo Veloz' },
+                    { color: '#ff8800', speed: 0.9, damage: 1.2, health: 1.1, name: 'Explosivo Potente' },
+                    { color: '#ffee44', speed: 1.05, damage: 0.8, health: 1.2, name: 'Explosivo Resistente' }
+                ]
+            },
+            splitter: { 
+                base: { health: 2, speed: 70, size: 20, xp: 25, damage: 1, canSplit: true, splitCount: 2 },
+                variants: [
+                    { color: '#44ff44', speed: 1.0, damage: 1.0, health: 1.0, name: 'Divisor Verde' },
+                    { color: '#66ff66', speed: 1.1, damage: 0.9, health: 0.9, name: 'Divisor Ágil' },
+                    { color: '#22ff22', speed: 0.9, damage: 1.1, health: 1.1, name: 'Divisor Fuerte' },
+                    { color: '#88ff88', speed: 1.05, damage: 0.8, health: 1.2, name: 'Divisor Resistente' }
+                ]
+            },
+            teleporter: { 
+                base: { health: 3, speed: 60, size: 22, xp: 35, damage: 2, canTeleport: true, teleportCooldown: 3000, lastTeleport: 0 },
+                variants: [
+                    { color: '#8844ff', speed: 1.0, damage: 1.0, health: 1.0, name: 'Teletransportador Púrpura' },
+                    { color: '#aa66ff', speed: 1.1, damage: 0.9, health: 0.9, name: 'Teletransportador Ágil' },
+                    { color: '#6622ff', speed: 0.9, damage: 1.2, health: 1.1, name: 'Teletransportador Fuerte' },
+                    { color: '#cc88ff', speed: 1.05, damage: 0.8, health: 1.2, name: 'Teletransportador Resistente' }
+                ]
+            },
+            shield: { 
+                base: { health: 4, speed: 50, size: 26, xp: 40, damage: 2, hasShield: true, shieldHealth: 2, maxShieldHealth: 2 },
+                variants: [
+                    { color: '#44aaff', speed: 1.0, damage: 1.0, health: 1.0, name: 'Escudero Azul' },
+                    { color: '#66bbff', speed: 1.1, damage: 0.9, health: 1.0, name: 'Escudero Ágil' },
+                    { color: '#2288ff', speed: 0.9, damage: 1.2, health: 1.1, name: 'Escudero Fuerte' },
+                    { color: '#88ccff', speed: 1.05, damage: 0.8, health: 1.2, name: 'Escudero Resistente' }
+                ]
+            },
+            berserker: { 
+                base: { health: 2, speed: 100, size: 18, xp: 20, damage: 1 },
+                variants: [
+                    { color: '#ff0044', speed: 1.2, damage: 1.3, health: 0.8, name: 'Berserker Sangriento' },
+                    { color: '#ff2266', speed: 1.15, damage: 1.1, health: 0.9, name: 'Berserker Furioso' },
+                    { color: '#cc0033', speed: 1.25, damage: 1.2, health: 0.7, name: 'Berserker Salvaje' },
+                    { color: '#ff4488', speed: 1.1, damage: 1.0, health: 1.0, name: 'Berserker Rápido' }
+                ]
+            },
+            healer: { 
+                base: { health: 3, speed: 50, size: 24, xp: 30, damage: 1, canHeal: true, healRange: 80 },
+                variants: [
+                    { color: '#44ff88', speed: 1.0, damage: 1.0, health: 1.0, name: 'Sanador Verde' },
+                    { color: '#66ffaa', speed: 1.1, damage: 0.9, health: 1.1, name: 'Sanador Ágil' },
+                    { color: '#22ff66', speed: 0.9, damage: 1.1, health: 1.2, name: 'Sanador Resistente' },
+                    { color: '#88ffcc', speed: 1.05, damage: 0.8, health: 1.3, name: 'Sanador Vital' }
+                ]
+            },
+            
+            // Enemigos avanzados (11-20)
+            swarm: { 
+                base: { health: 1, speed: 140, size: 12, xp: 8, damage: 1, isSwarm: true },
+                variants: [
+                    { color: '#ffff44', speed: 1.0, damage: 1.0, health: 1.0, name: 'Enjambre Amarillo' },
+                    { color: '#ffff66', speed: 1.1, damage: 0.9, health: 0.9, name: 'Enjambre Veloz' },
+                    { color: '#ffff22', speed: 0.95, damage: 1.1, health: 1.1, name: 'Enjambre Fuerte' },
+                    { color: '#ffff88', speed: 1.05, damage: 0.8, health: 1.2, name: 'Enjambre Resistente' }
+                ]
+            },
+            sniper: { 
+                base: { health: 1, speed: 40, size: 16, xp: 35, damage: 3, canShoot: true, shootRange: 400, shootCooldown: 3000 },
+                variants: [
+                    { color: '#44ff44', speed: 1.0, damage: 1.0, health: 1.0, name: 'Francotirador Verde' },
+                    { color: '#66ff66', speed: 1.05, damage: 1.1, health: 0.9, name: 'Francotirador Preciso' },
+                    { color: '#22ff22', speed: 0.95, damage: 1.2, health: 1.1, name: 'Francotirador Letal' },
+                    { color: '#88ff88', speed: 1.0, damage: 0.9, health: 1.2, name: 'Francotirador Resistente' }
+                ]
+            },
+            kamikaze: { 
+                base: { health: 1, speed: 110, size: 16, xp: 15, damage: 3, isKamikaze: true, explosionRange: 60 },
+                variants: [
+                    { color: '#ff4444', speed: 1.0, damage: 1.0, health: 1.0, name: 'Kamikaze Rojo' },
+                    { color: '#ff6666', speed: 1.1, damage: 1.1, health: 0.9, name: 'Kamikaze Explosivo' },
+                    { color: '#ff2222', speed: 0.9, damage: 1.2, health: 1.1, name: 'Kamikaze Destructivo' },
+                    { color: '#ff8888', speed: 1.05, damage: 0.9, health: 1.2, name: 'Kamikaze Resistente' }
+                ]
+            },
+            necromancer: { 
+                base: { health: 4, speed: 45, size: 24, xp: 45, damage: 2, canSpawn: true, spawnCooldown: 5000, lastSpawn: 0 },
+                variants: [
+                    { color: '#8b008b', speed: 1.0, damage: 1.0, health: 1.0, name: 'Nigromante Oscuro' },
+                    { color: '#9932cc', speed: 1.1, damage: 0.9, health: 1.0, name: 'Nigromante Ágil' },
+                    { color: '#4b0082', speed: 0.9, damage: 1.2, health: 1.2, name: 'Nigromante Poderoso' },
+                    { color: '#ba55d3', speed: 1.05, damage: 0.8, health: 1.3, name: 'Nigromante Vital' }
+                ]
+            },
+            ice: { 
+                base: { health: 2, speed: 65, size: 20, xp: 25, damage: 1, canSlow: true, slowDuration: 3000 },
+                variants: [
+                    { color: '#87ceeb', speed: 1.0, damage: 1.0, health: 1.0, name: 'Helado Celeste' },
+                    { color: '#b0e0e6', speed: 1.1, damage: 0.9, health: 1.0, name: 'Helado Veloz' },
+                    { color: '#4682b4', speed: 0.9, damage: 1.2, health: 1.1, name: 'Helado Fuerte' },
+                    { color: '#e0f6ff', speed: 1.05, damage: 0.8, health: 1.2, name: 'Helado Resistente' }
+                ]
+            },
+            poison: { 
+                base: { health: 2, speed: 75, size: 18, xp: 30, damage: 1, canPoison: true, poisonDamage: 1, poisonDuration: 5000 },
+                variants: [
+                    { color: '#32cd32', speed: 1.0, damage: 1.0, health: 1.0, name: 'Venenoso Verde' },
+                    { color: '#90ee90', speed: 1.1, damage: 0.9, health: 1.0, name: 'Venenoso Ágil' },
+                    { color: '#228b22', speed: 0.9, damage: 1.2, health: 1.1, name: 'Venenoso Mortal' },
+                    { color: '#98fb98', speed: 1.05, damage: 0.8, health: 1.2, name: 'Venenoso Resistente' }
+                ]
+            },
+            lightning: { 
+                base: { health: 1, speed: 130, size: 14, xp: 20, damage: 2, canChain: true, chainRange: 80 },
+                variants: [
+                    { color: '#ffff00', speed: 1.0, damage: 1.0, health: 1.0, name: 'Rayo Dorado' },
+                    { color: '#ffd700', speed: 1.1, damage: 0.9, health: 0.9, name: 'Rayo Veloz' },
+                    { color: '#ffa500', speed: 0.9, damage: 1.2, health: 1.1, name: 'Rayo Potente' },
+                    { color: '#fff8dc', speed: 1.05, damage: 0.8, health: 1.2, name: 'Rayo Resistente' }
+                ]
+            },
+            shadow: { 
+                base: { health: 2, speed: 85, size: 16, xp: 25, damage: 1, canPhase: true, phaseCooldown: 4000, lastPhase: 0 },
+                variants: [
+                    { color: '#2f4f4f', speed: 1.0, damage: 1.0, health: 1.0, name: 'Sombra Oscura' },
+                    { color: '#708090', speed: 1.1, damage: 0.9, health: 1.0, name: 'Sombra Ágil' },
+                    { color: '#1c1c1c', speed: 0.9, damage: 1.2, health: 1.1, name: 'Sombra Poderosa' },
+                    { color: '#a9a9a9', speed: 1.05, damage: 0.8, health: 1.2, name: 'Sombra Resistente' }
+                ]
+            },
+            fire: { 
+                base: { health: 3, speed: 70, size: 22, xp: 35, damage: 2, canBurn: true, burnDamage: 2, burnDuration: 4000 },
+                variants: [
+                    { color: '#ff4500', speed: 1.0, damage: 1.0, health: 1.0, name: 'Fuego Naranja' },
+                    { color: '#ff6347', speed: 1.1, damage: 0.9, health: 1.0, name: 'Fuego Ágil' },
+                    { color: '#dc143c', speed: 0.9, damage: 1.2, health: 1.1, name: 'Fuego Intenso' },
+                    { color: '#ffa07a', speed: 1.05, damage: 0.8, health: 1.2, name: 'Fuego Resistente' }
+                ]
+            },
+            earth: { 
+                base: { health: 5, speed: 40, size: 30, xp: 40, damage: 3, canStun: true, stunDuration: 2000 },
+                variants: [
+                    { color: '#8b4513', speed: 1.0, damage: 1.0, health: 1.0, name: 'Tierra Marrón' },
+                    { color: '#a0522d', speed: 1.1, damage: 0.9, health: 1.0, name: 'Tierra Ágil' },
+                    { color: '#654321', speed: 0.9, damage: 1.2, health: 1.2, name: 'Tierra Fuerte' },
+                    { color: '#cd853f', speed: 1.05, damage: 0.8, health: 1.3, name: 'Tierra Resistente' }
+                ]
+            },
+            
+            // Enemigos élite (21-30)
+            vampire: { 
+                base: { health: 4, speed: 80, size: 20, xp: 45, damage: 2, canDrain: true, drainAmount: 1, drainCooldown: 3000, lastDrain: 0 },
+                variants: [
+                    { color: '#800080', speed: 1.0, damage: 1.0, health: 1.0, name: 'Vampiro Púrpura' },
+                    { color: '#9932cc', speed: 1.1, damage: 0.9, health: 1.0, name: 'Vampiro Ágil' },
+                    { color: '#4b0082', speed: 0.9, damage: 1.2, health: 1.1, name: 'Vampiro Poderoso' },
+                    { color: '#da70d6', speed: 1.05, damage: 0.8, health: 1.2, name: 'Vampiro Resistente' }
+                ]
+            },
+            ghost: { 
+                base: { health: 2, speed: 60, size: 18, xp: 30, damage: 1, canPassThrough: true, passCooldown: 5000, lastPass: 0 },
+                variants: [
+                    { color: '#f0f8ff', speed: 1.0, damage: 1.0, health: 1.0, name: 'Fantasma Blanco' },
+                    { color: '#ffffff', speed: 1.1, damage: 0.9, health: 1.0, name: 'Fantasma Veloz' },
+                    { color: '#e6e6fa', speed: 0.9, damage: 1.2, health: 1.1, name: 'Fantasma Poderoso' },
+                    { color: '#f8f8ff', speed: 1.05, damage: 0.8, health: 1.2, name: 'Fantasma Bendito' }
+                ]
+            },
+            robot: { 
+                base: { health: 6, speed: 55, size: 26, xp: 50, damage: 3, canShield: true, shieldCooldown: 8000, lastShield: 0 },
+                variants: [
+                    { color: '#c0c0c0', speed: 1.0, damage: 1.0, health: 1.0, name: 'Robot Plateado' },
+                    { color: '#dcdcdc', speed: 1.1, damage: 0.9, health: 1.0, name: 'Robot Ágil' },
+                    { color: '#a9a9a9', speed: 0.9, damage: 1.2, health: 1.2, name: 'Robot Pesado' },
+                    { color: '#f5f5f5', speed: 1.05, damage: 0.8, health: 1.3, name: 'Robot Blindado' }
+                ]
+            },
+            demon: { 
+                base: { health: 5, speed: 75, size: 24, xp: 55, damage: 4, canEnrage: true, enrageThreshold: 0.3 },
+                variants: [
+                    { color: '#8b0000', speed: 1.0, damage: 1.0, health: 1.0, name: 'Demonio Rojo' },
+                    { color: '#dc143c', speed: 1.1, damage: 0.9, health: 1.0, name: 'Demonio Ágil' },
+                    { color: '#660000', speed: 0.9, damage: 1.3, health: 1.2, name: 'Demonio Feroz' },
+                    { color: '#ff6347', speed: 1.05, damage: 0.8, health: 1.3, name: 'Demonio Resistente' }
+                ]
+            },
+            angel: { 
+                base: { health: 4, speed: 90, size: 20, xp: 50, damage: 2, canBless: true, blessRange: 100, blessCooldown: 6000, lastBless: 0 },
+                variants: [
+                    { color: '#ffffff', speed: 1.0, damage: 1.0, health: 1.0, name: 'Ángel Blanco' },
+                    { color: '#f0f8ff', speed: 1.1, damage: 0.9, health: 1.0, name: 'Ángel Veloz' },
+                    { color: '#e6e6fa', speed: 0.9, damage: 1.2, health: 1.1, name: 'Ángel Poderoso' },
+                    { color: '#fff8dc', speed: 1.05, damage: 0.8, health: 1.2, name: 'Ángel Bendito' }
+                ]
+            },
+            golem: { 
+                base: { health: 8, speed: 30, size: 32, xp: 60, damage: 5, canReflect: true, reflectChance: 0.3 },
+                variants: [
+                    { color: '#696969', speed: 1.0, damage: 1.0, health: 1.0, name: 'Gólem Gris' },
+                    { color: '#808080', speed: 1.1, damage: 0.9, health: 1.0, name: 'Gólem Ágil' },
+                    { color: '#2f4f4f', speed: 0.9, damage: 1.2, health: 1.3, name: 'Gólem Poderoso' },
+                    { color: '#a9a9a9', speed: 1.05, damage: 0.8, health: 1.4, name: 'Gólem Inquebrantable' }
+                ]
+            },
+            wizard: { 
+                base: { health: 3, speed: 50, size: 22, xp: 45, damage: 2, canCast: true, castCooldown: 4000, lastCast: 0 },
+                variants: [
+                    { color: '#9370db', speed: 1.0, damage: 1.0, health: 1.0, name: 'Mago Púrpura' },
+                    { color: '#ba55d3', speed: 1.1, damage: 0.9, health: 1.0, name: 'Mago Ágil' },
+                    { color: '#663399', speed: 0.9, damage: 1.2, health: 1.1, name: 'Mago Poderoso' },
+                    { color: '#dda0dd', speed: 1.05, damage: 0.8, health: 1.2, name: 'Mago Sabio' }
+                ]
+            },
+            dragon: { 
+                base: { health: 12, speed: 65, size: 36, xp: 80, damage: 6, canFly: true, flyCooldown: 6000, lastFly: 0 },
+                variants: [
+                    { color: '#ff4500', speed: 1.0, damage: 1.0, health: 1.0, name: 'Dragón Rojo' },
+                    { color: '#ff6347', speed: 1.1, damage: 0.9, health: 1.0, name: 'Dragón Veloz' },
+                    { color: '#dc143c', speed: 0.9, damage: 1.3, health: 1.2, name: 'Dragón Anciano' },
+                    { color: '#ffa07a', speed: 1.05, damage: 0.8, health: 1.3, name: 'Dragón Sabio' }
+                ]
+            },
+            kraken: { 
+                base: { health: 10, speed: 45, size: 34, xp: 70, damage: 4, canTentacle: true, tentacleCount: 3, tentacleCooldown: 5000, lastTentacle: 0 },
+                variants: [
+                    { color: '#2e8b57', speed: 1.0, damage: 1.0, health: 1.0, name: 'Kraken Verde' },
+                    { color: '#3cb371', speed: 1.1, damage: 0.9, health: 1.0, name: 'Kraken Ágil' },
+                    { color: '#228b22', speed: 0.9, damage: 1.2, health: 1.2, name: 'Kraken Poderoso' },
+                    { color: '#90ee90', speed: 1.05, damage: 0.8, health: 1.3, name: 'Kraken Ancestral' }
+                ]
+            },
+            phoenix: { 
+                base: { health: 6, speed: 85, size: 28, xp: 65, damage: 4, canRevive: true, reviveHealth: 3 },
+                variants: [
+                    { color: '#ff1493', speed: 1.0, damage: 1.0, health: 1.0, name: 'Fénix Rosa' },
+                    { color: '#ff69b4', speed: 1.1, damage: 0.9, health: 1.0, name: 'Fénix Veloz' },
+                    { color: '#c71585', speed: 0.9, damage: 1.2, health: 1.1, name: 'Fénix Poderoso' },
+                    { color: '#ffb6c1', speed: 1.05, damage: 0.8, health: 1.2, name: 'Fénix Inmortal' }
+                ]
+            },
+            
+            // Enemigos legendarios (31-40)
+            titan: { 
+                base: { health: 15, speed: 35, size: 40, xp: 100, damage: 8, canStomp: true, stompRange: 120, stompCooldown: 8000, lastStomp: 0 },
+                variants: [
+                    { color: '#8b4513', speed: 1.0, damage: 1.0, health: 1.0, name: 'Titán Marrón' },
+                    { color: '#a0522d', speed: 1.1, damage: 0.9, health: 1.0, name: 'Titán Ágil' },
+                    { color: '#654321', speed: 0.9, damage: 1.3, health: 1.3, name: 'Titán Colosal' },
+                    { color: '#cd853f', speed: 1.05, damage: 0.8, health: 1.4, name: 'Titán Inquebrantable' }
+                ]
+            },
+            void: { 
+                base: { health: 8, speed: 70, size: 26, xp: 90, damage: 5, canVoid: true, voidCooldown: 7000, lastVoid: 0 },
+                variants: [
+                    { color: '#000000', speed: 1.0, damage: 1.0, health: 1.0, name: 'Void Negro' },
+                    { color: '#1c1c1c', speed: 1.1, damage: 0.9, health: 1.0, name: 'Void Veloz' },
+                    { color: '#2f2f2f', speed: 0.9, damage: 1.2, health: 1.2, name: 'Void Poderoso' },
+                    { color: '#696969', speed: 1.05, damage: 0.8, health: 1.3, name: 'Void Absoluto' }
+                ]
+            },
+            crystal: { 
+                base: { health: 10, speed: 40, size: 30, xp: 85, damage: 4, canCrystalize: true, crystalizeChance: 0.25 },
+                variants: [
+                    { color: '#00ffff', speed: 1.0, damage: 1.0, health: 1.0, name: 'Cristal Cian' },
+                    { color: '#40e0d0', speed: 1.1, damage: 0.9, health: 1.0, name: 'Cristal Ágil' },
+                    { color: '#008b8b', speed: 0.9, damage: 1.2, health: 1.2, name: 'Cristal Puro' },
+                    { color: '#afeeee', speed: 1.05, damage: 0.8, health: 1.3, name: 'Cristal Perfecto' }
+                ]
+            },
+            storm: { 
+                base: { health: 7, speed: 60, size: 24, xp: 80, damage: 5, canStorm: true, stormCooldown: 6000, lastStorm: 0 },
+                variants: [
+                    { color: '#4169e1', speed: 1.0, damage: 1.0, health: 1.0, name: 'Tormenta Azul' },
+                    { color: '#6495ed', speed: 1.1, damage: 0.9, health: 1.0, name: 'Tormenta Veloz' },
+                    { color: '#0000cd', speed: 0.9, damage: 1.2, health: 1.1, name: 'Tormenta Feroz' },
+                    { color: '#87ceeb', speed: 1.05, damage: 0.8, health: 1.2, name: 'Tormenta Eterna' }
+                ]
+            },
+            cosmic: { 
+                base: { health: 12, speed: 55, size: 32, xp: 95, damage: 6, canWarp: true, warpCooldown: 8000, lastWarp: 0 },
+                variants: [
+                    { color: '#8a2be2', speed: 1.0, damage: 1.0, health: 1.0, name: 'Cósmico Púrpura' },
+                    { color: '#9370db', speed: 1.1, damage: 0.9, health: 1.0, name: 'Cósmico Veloz' },
+                    { color: '#4b0082', speed: 0.9, damage: 1.2, health: 1.2, name: 'Cósmico Poderoso' },
+                    { color: '#da70d6', speed: 1.05, damage: 0.8, health: 1.3, name: 'Cósmico Infinito' }
+                ]
+            },
+            quantum: { 
+                base: { health: 9, speed: 75, size: 28, xp: 90, damage: 5, canQuantum: true, quantumCooldown: 9000, lastQuantum: 0 },
+                variants: [
+                    { color: '#00ff7f', speed: 1.0, damage: 1.0, health: 1.0, name: 'Cuántico Verde' },
+                    { color: '#32cd32', speed: 1.1, damage: 0.9, health: 1.0, name: 'Cuántico Veloz' },
+                    { color: '#228b22', speed: 0.9, damage: 1.2, health: 1.1, name: 'Cuántico Poderoso' },
+                    { color: '#90ee90', speed: 1.05, damage: 0.8, health: 1.2, name: 'Cuántico Universal' }
+                ]
+            },
+            entropy: { 
+                base: { health: 11, speed: 50, size: 30, xp: 100, damage: 7, canEntropy: true, entropyChance: 0.2 },
+                variants: [
+                    { color: '#ff4500', speed: 1.0, damage: 1.0, health: 1.0, name: 'Entropía Naranja' },
+                    { color: '#ff6347', speed: 1.1, damage: 0.9, health: 1.0, name: 'Entropía Veloz' },
+                    { color: '#dc143c', speed: 0.9, damage: 1.3, health: 1.2, name: 'Entropía Caótica' },
+                    { color: '#ffa07a', speed: 1.05, damage: 0.8, health: 1.3, name: 'Entropía Absoluta' }
+                ]
+            },
+            primordial: { 
+                base: { health: 20, speed: 25, size: 45, xp: 150, damage: 10, canPrimordial: true, primordialCooldown: 12000, lastPrimordial: 0 },
+                variants: [
+                    { color: '#2f4f4f', speed: 1.0, damage: 1.0, health: 1.0, name: 'Primordial Oscuro' },
+                    { color: '#696969', speed: 1.1, damage: 0.9, health: 1.0, name: 'Primordial Ágil' },
+                    { color: '#1c1c1c', speed: 0.9, damage: 1.4, health: 1.4, name: 'Primordial Ancestral' },
+                    { color: '#a9a9a9', speed: 1.05, damage: 0.8, health: 1.5, name: 'Primordial Eterno' }
+                ]
+            },
+            // Nuevos tipos especiales
+            ray: {
+                base: { health: 2, speed: 80, size: 20, xp: 40, damage: 2, canBeam: true, beamCooldown: 3500, beamDuration: 300, shootRange: 500 },
+                variants: [
+                    { color: '#ffd700', speed: 1.0, damage: 1.0, health: 1.0, name: 'Rayo Dorado' },
+                    { color: '#ffdd55', speed: 1.1, damage: 0.9, health: 1.0, name: 'Rayo Ágil' },
+                    { color: '#ffcc00', speed: 0.9, damage: 1.2, health: 1.1, name: 'Rayo Potente' },
+                    { color: '#fff099', speed: 1.05, damage: 0.8, health: 1.2, name: 'Rayo Resistente' }
+                ]
+            },
+            terraformer: {
+                base: { health: 3, speed: 60, size: 22, xp: 50, damage: 1, canTerraform: true, terraformCooldown: 5000 },
+                variants: [
+                    { color: '#8b5a2b', speed: 1.0, damage: 1.0, health: 1.0, name: 'Constructor 1' },
+                    { color: '#a0522d', speed: 1.1, damage: 0.9, health: 1.0, name: 'Constructor 2' },
+                    { color: '#7f5217', speed: 0.9, damage: 1.1, health: 1.2, name: 'Constructor 3' },
+                    { color: '#cd853f', speed: 1.05, damage: 0.8, health: 1.2, name: 'Constructor 4' }
+                ]
+            },
+            boss: { 
+                base: { health: 20, speed: 100, size: 40, xp: 100, damage: 3, isBoss: true, canSpawn: true, spawnCooldown: 9000, lastSpawn: 0 },
+                variants: [
+                    { color: '#8844ff', speed: 1.0, damage: 1.0, health: 1.0, name: 'Boss Púrpura' },
+                    { color: '#aa66ff', speed: 1.1, damage: 0.9, health: 0.9, name: 'Boss Veloz' },
+                    { color: '#6622ff', speed: 0.9, damage: 1.2, health: 1.2, name: 'Boss Pesado' },
+                    { color: '#cc88ff', speed: 1.05, damage: 1.1, health: 1.1, name: 'Boss Equilibrado' }
+                ]
+            }
+        };
+
+        function createEnemy(type, x, y, variant = null) {
+            const baseConfig = enemyTypes[type].base;
+            const variants = enemyTypes[type].variants;
+            
+            // Seleccionar variante aleatoria si no se especifica
+            const selectedVariant = variant !== null ? variants[variant] : variants[Math.floor(Math.random() * variants.length)];
+            
+            const config = {
+                health: Math.floor(baseConfig.health * selectedVariant.health),
+                speed: Math.floor(baseConfig.speed * selectedVariant.speed),
+                size: baseConfig.size,
+                color: selectedVariant.color,
+                xp: Math.floor(baseConfig.xp * (selectedVariant.damage + selectedVariant.health) / 2),
+                damage: Math.floor(baseConfig.damage * selectedVariant.damage),
+                variantName: selectedVariant.name,
+                ...baseConfig
+            };
+
+            // Escalado de dificultad por oleada
+            const wave = game.wave || 1;
+            const hpScale = Math.max(1, 1 + wave * 0.03);
+            const dmgScale = Math.max(1, 1 + wave * 0.02);
+            const spdScale = Math.max(1, 1 + wave * 0.02);
+
+            // Aplicar escalado directo sobre config derivado
+            const scaledHealth = Math.max(1, Math.floor((config.health || 1) * hpScale));
+            const scaledDamage = Math.max(1, Math.floor((config.damage || 1) * dmgScale));
+            const scaledSpeed = Math.max(10, Math.floor((config.speed || 10) * spdScale));
+            const scaledShootCooldown = config.shootCooldown ? Math.max(500, Math.floor(config.shootCooldown / (1 + wave * 0.01))) : 0;
+            const scaledCastCooldown = config.castCooldown ? Math.max(600, Math.floor(config.castCooldown / (1 + wave * 0.01))) : 0;
+
+            // Asignar forma y pequeños modificadores según forma
+            const shapes = ['circle', 'rectangle', 'triangle', 'trapezoid'];
+            const shape = shapes[Math.floor(Math.random() * shapes.length)];
+            let shapeHealth = scaledHealth;
+            let shapeSpeed = scaledSpeed;
+            let shapeDamage = scaledDamage;
+            switch (shape) {
+                case 'triangle':
+                    shapeSpeed = Math.floor(scaledSpeed * 1.15);
+                    shapeHealth = Math.max(1, Math.floor(scaledHealth * 0.9));
+                    break;
+                case 'rectangle':
+                    shapeHealth = Math.floor(scaledHealth * 1.2);
+                    shapeSpeed = Math.max(10, Math.floor(scaledSpeed * 0.9));
+                    break;
+                case 'trapezoid':
+                    shapeDamage = Math.floor(scaledDamage * 1.1);
+                    break;
+                // circle: balanced
+            }
+
+            return { 
+                x, y, vx: 0, vy: 0, size: config.size, health: shapeHealth, maxHealth: shapeHealth, 
+                speed: shapeSpeed, color: config.color, xp: config.xp, type, damage: shapeDamage, 
+                canShoot: config.canShoot || false, explosive: config.explosive || false, isBoss: config.isBoss || false,
+                canSplit: config.canSplit || false, splitCount: config.splitCount || 0,
+                canTeleport: config.canTeleport || false, teleportCooldown: config.teleportCooldown || 0, lastTeleport: config.lastTeleport || 0,
+                hasShield: config.hasShield || false, shieldHealth: config.shieldHealth || 0, maxShieldHealth: config.maxShieldHealth || 0,
+                canHeal: config.canHeal || false, healRange: config.healRange || 0, lastHeal: 0, healCooldown: 2000,
+                isSwarm: config.isSwarm || false, isKamikaze: config.isKamikaze || false, explosionRange: config.explosionRange || 0,
+                shootRange: config.shootRange || 300, lastShot: 0, shootCooldown: scaledShootCooldown || 2000, 
+                canSpawn: config.canSpawn || false, spawnCooldown: config.spawnCooldown || 0, lastSpawn: config.lastSpawn || 0,
+                // Ray/Beam
+                canBeam: config.canBeam || false, beamCooldown: config.beamCooldown || 0, lastBeam: config.lastBeam || 0, beamDuration: config.beamDuration || 0,
+                // Terraforming
+                canTerraform: config.canTerraform || false, terraformCooldown: config.terraformCooldown || 0, lastTerraform: config.lastTerraform || 0,
+                // Nuevas habilidades avanzadas
+                canSlow: config.canSlow || false, slowDuration: config.slowDuration || 0,
+                canPoison: config.canPoison || false, poisonDamage: config.poisonDamage || 0, poisonDuration: config.poisonDuration || 0,
+                canChain: config.canChain || false, chainRange: config.chainRange || 0,
+                canPhase: config.canPhase || false, phaseCooldown: config.phaseCooldown || 0, lastPhase: config.lastPhase || 0,
+                canBurn: config.canBurn || false, burnDamage: Math.max(1, Math.floor((config.burnDamage || 0) * dmgScale)), burnDuration: config.burnDuration || 0,
+                canStun: config.canStun || false, stunDuration: config.stunDuration || 0,
+                canDrain: config.canDrain || false, drainAmount: Math.max(1, Math.floor((config.drainAmount || 0) * dmgScale)), drainCooldown: config.drainCooldown || 0, lastDrain: config.lastDrain || 0,
+                canPassThrough: config.canPassThrough || false, passCooldown: config.passCooldown || 0, lastPass: config.lastPass || 0,
+                canShield: config.canShield || false, shieldCooldown: config.shieldCooldown || 0, lastShield: config.lastShield || 0,
+                canEnrage: config.canEnrage || false, enrageThreshold: config.enrageThreshold || 0,
+                canBless: config.canBless || false, blessRange: config.blessRange || 0, blessCooldown: config.blessCooldown || 0, lastBless: config.lastBless || 0,
+                canReflect: config.canReflect || false, reflectChance: config.reflectChance || 0,
+                canCast: config.canCast || false, castCooldown: scaledCastCooldown || 0, lastCast: config.lastCast || 0,
+                canFly: config.canFly || false, flyCooldown: config.flyCooldown || 0, lastFly: config.lastFly || 0,
+                canTentacle: config.canTentacle || false, tentacleCount: config.tentacleCount || 0, tentacleCooldown: config.tentacleCooldown || 0, lastTentacle: config.lastTentacle || 0,
+                canRevive: config.canRevive || false, reviveHealth: config.reviveHealth || 0,
+                canStomp: config.canStomp || false, stompRange: config.stompRange || 0, stompCooldown: config.stompCooldown || 0, lastStomp: config.lastStomp || 0,
+                canVoid: config.canVoid || false, voidCooldown: config.voidCooldown || 0, lastVoid: config.lastVoid || 0,
+                canCrystalize: config.canCrystalize || false, crystalizeChance: config.crystalizeChance || 0,
+                canStorm: config.canStorm || false, stormCooldown: config.stormCooldown || 0, lastStorm: config.lastStorm || 0,
+                canWarp: config.canWarp || false, warpCooldown: config.warpCooldown || 0, lastWarp: config.lastWarp || 0,
+                canQuantum: config.canQuantum || false, quantumCooldown: config.quantumCooldown || 0, lastQuantum: config.lastQuantum || 0,
+                canEntropy: config.canEntropy || false, entropyChance: config.entropyChance || 0,
+                canPrimordial: config.canPrimordial || false, primordialCooldown: config.primordialCooldown || 0, lastPrimordial: config.lastPrimordial || 0,
+                variantName: config.variantName,
+                shape
+            };
+        }
+
+        function spawnWave() {
+            const wave = game.wave;
+            const enemyCount = Math.min(7 + wave * 3, 80);
+            
+            if (wave % 10 === 0) {
+                const boss = createEnemy('boss', canvas.width/2, -50);
+                boss.health = Math.floor(15 + wave * 2);
+                boss.maxHealth = boss.health;
+                boss.xp = 100 + wave * 10;
+                enemies.push(boss);
+                screenShake(15, 800); // Temblor fuerte para boss
+            }
+            
+            if (wave === 100) {
+                const finalBoss = createEnemy('boss', canvas.width/2, -50);
+                finalBoss.health = 100; finalBoss.maxHealth = 100; finalBoss.xp = 1000; finalBoss.size = 60; finalBoss.speed = 120;
+                enemies.push(finalBoss);
+                screenShake(20, 1000); // Temblor muy fuerte para boss final
+            }
+
+            for (let i = 0; i < enemyCount; i++) {
+                let x, y;
+                const side = Math.floor(Math.random() * 4);
+                switch (side) {
+                    case 0: x = random(0, canvas.width); y = -50; break;
+                    case 1: x = canvas.width + 50; y = random(0, canvas.height); break;
+                    case 2: x = random(0, canvas.width); y = canvas.height + 50; break;
+                    case 3: x = -50; y = random(0, canvas.height); break;
+                }
+
+                let enemyType = 'normal';
+                if (wave > 90) {
+                    // Oleadas finales - todos los enemigos disponibles
+                    const allTypes = Object.keys(enemyTypes).filter(t => t !== 'boss');
+                    enemyType = allTypes[Math.floor(Math.random() * allTypes.length)];
+                } else if (wave > 80) {
+                    // Enemigos legendarios y élite
+                    const rand = Math.random();
+                    if (rand < 0.05) enemyType = 'primordial';
+                    else if (rand < 0.10) enemyType = 'entropy';
+                    else if (rand < 0.15) enemyType = 'quantum';
+                    else if (rand < 0.20) enemyType = 'cosmic';
+                    else if (rand < 0.25) enemyType = 'storm';
+                    else if (rand < 0.30) enemyType = 'crystal';
+                    else if (rand < 0.35) enemyType = 'void';
+                    else if (rand < 0.40) enemyType = 'titan';
+                    else if (rand < 0.50) enemyType = 'phoenix';
+                    else if (rand < 0.60) enemyType = 'kraken';
+                    else if (rand < 0.70) enemyType = 'dragon';
+                    else if (rand < 0.80) enemyType = 'wizard';
+                    else if (rand < 0.90) enemyType = 'golem';
+                    else enemyType = 'angel';
+                } else if (wave > 70) {
+                    // Enemigos élite y algunos legendarios
+                    const rand = Math.random();
+                    if (rand < 0.08) enemyType = 'titan';
+                    else if (rand < 0.15) enemyType = 'void';
+                    else if (rand < 0.22) enemyType = 'crystal';
+                    else if (rand < 0.29) enemyType = 'storm';
+                    else if (rand < 0.36) enemyType = 'cosmic';
+                    else if (rand < 0.43) enemyType = 'quantum';
+                    else if (rand < 0.50) enemyType = 'entropy';
+                    else if (rand < 0.60) enemyType = 'phoenix';
+                    else if (rand < 0.70) enemyType = 'kraken';
+                    else if (rand < 0.80) enemyType = 'dragon';
+                    else if (rand < 0.90) enemyType = 'wizard';
+                    else enemyType = 'golem';
+                } else if (wave > 60) {
+                    // Enemigos élite
+                    const rand = Math.random();
+                    if (rand < 0.05) enemyType = 'primordial';
+                    else if (rand < 0.10) enemyType = 'titan';
+                    else if (rand < 0.15) enemyType = 'void';
+                    else if (rand < 0.20) enemyType = 'crystal';
+                    else if (rand < 0.25) enemyType = 'storm';
+                    else if (rand < 0.30) enemyType = 'cosmic';
+                    else if (rand < 0.35) enemyType = 'quantum';
+                    else if (rand < 0.40) enemyType = 'entropy';
+                    else if (rand < 0.50) enemyType = 'phoenix';
+                    else if (rand < 0.60) enemyType = 'kraken';
+                    else if (rand < 0.70) enemyType = 'dragon';
+                    else if (rand < 0.80) enemyType = 'wizard';
+                    else if (rand < 0.90) enemyType = 'golem';
+                    else enemyType = 'angel';
+                } else if (wave > 50) {
+                    // Enemigos élite avanzados
+                    const rand = Math.random();
+                    if (rand < 0.05) enemyType = 'titan';
+                    else if (rand < 0.10) enemyType = 'void';
+                    else if (rand < 0.15) enemyType = 'crystal';
+                    else if (rand < 0.20) enemyType = 'storm';
+                    else if (rand < 0.25) enemyType = 'cosmic';
+                    else if (rand < 0.30) enemyType = 'quantum';
+                    else if (rand < 0.35) enemyType = 'entropy';
+                    else if (rand < 0.45) enemyType = 'phoenix';
+                    else if (rand < 0.55) enemyType = 'kraken';
+                    else if (rand < 0.65) enemyType = 'dragon';
+                    else if (rand < 0.75) enemyType = 'wizard';
+                    else if (rand < 0.85) enemyType = 'golem';
+                    else if (rand < 0.95) enemyType = 'angel';
+                    else enemyType = 'demon';
+                } else if (wave > 40) {
+                    // Enemigos élite
+                    const rand = Math.random();
+                    if (rand < 0.05) enemyType = 'titan';
+                    else if (rand < 0.10) enemyType = 'void';
+                    else if (rand < 0.15) enemyType = 'crystal';
+                    else if (rand < 0.20) enemyType = 'storm';
+                    else if (rand < 0.25) enemyType = 'cosmic';
+                    else if (rand < 0.30) enemyType = 'quantum';
+                    else if (rand < 0.35) enemyType = 'entropy';
+                    else if (rand < 0.45) enemyType = 'phoenix';
+                    else if (rand < 0.55) enemyType = 'kraken';
+                    else if (rand < 0.65) enemyType = 'dragon';
+                    else if (rand < 0.75) enemyType = 'wizard';
+                    else if (rand < 0.85) enemyType = 'golem';
+                    else if (rand < 0.95) enemyType = 'angel';
+                    else enemyType = 'demon';
+                } else if (wave > 30) {
+                    // Enemigos élite básicos
+                    const rand = Math.random();
+                    if (rand < 0.05) enemyType = 'titan';
+                    else if (rand < 0.10) enemyType = 'void';
+                    else if (rand < 0.15) enemyType = 'crystal';
+                    else if (rand < 0.20) enemyType = 'storm';
+                    else if (rand < 0.25) enemyType = 'cosmic';
+                    else if (rand < 0.30) enemyType = 'quantum';
+                    else if (rand < 0.35) enemyType = 'entropy';
+                    else if (rand < 0.45) enemyType = 'phoenix';
+                    else if (rand < 0.55) enemyType = 'kraken';
+                    else if (rand < 0.65) enemyType = 'dragon';
+                    else if (rand < 0.75) enemyType = 'wizard';
+                    else if (rand < 0.85) enemyType = 'golem';
+                    else if (rand < 0.95) enemyType = 'angel';
+                    else enemyType = 'demon';
+                } else if (wave > 20) {
+                    // Enemigos avanzados y algunos élite
+                    const rand = Math.random();
+                    if (rand < 0.05) enemyType = 'phoenix';
+                    else if (rand < 0.10) enemyType = 'kraken';
+                    else if (rand < 0.15) enemyType = 'dragon';
+                    else if (rand < 0.20) enemyType = 'wizard';
+                    else if (rand < 0.25) enemyType = 'golem';
+                    else if (rand < 0.30) enemyType = 'angel';
+                    else if (rand < 0.35) enemyType = 'demon';
+                    else if (rand < 0.40) enemyType = 'robot';
+                    else if (rand < 0.45) enemyType = 'ghost';
+                    else if (rand < 0.50) enemyType = 'vampire';
+                    else if (rand < 0.60) enemyType = 'fire';
+                    else if (rand < 0.70) enemyType = 'earth';
+                    else if (rand < 0.80) enemyType = 'shadow';
+                    else if (rand < 0.90) enemyType = 'lightning';
+                    else enemyType = 'poison';
+                } else if (wave > 15) {
+                    // Enemigos avanzados
+                    const rand = Math.random();
+                    if (rand < 0.05) enemyType = 'fire';
+                    else if (rand < 0.10) enemyType = 'earth';
+                    else if (rand < 0.15) enemyType = 'shadow';
+                    else if (rand < 0.20) enemyType = 'lightning';
+                    else if (rand < 0.25) enemyType = 'poison';
+                    else if (rand < 0.30) enemyType = 'ice';
+                    else if (rand < 0.35) enemyType = 'necromancer';
+                    else if (rand < 0.40) enemyType = 'vampire';
+                    else if (rand < 0.45) enemyType = 'ghost';
+                    else if (rand < 0.50) enemyType = 'robot';
+                    else if (rand < 0.55) enemyType = 'demon';
+                    else if (rand < 0.60) enemyType = 'angel';
+                    else if (rand < 0.65) enemyType = 'golem';
+                    else if (rand < 0.70) enemyType = 'wizard';
+                    else if (rand < 0.80) enemyType = 'swarm';
+                    else if (rand < 0.90) enemyType = 'sniper';
+                    else enemyType = 'kamikaze';
+                } else if (wave > 10) {
+                    // Enemigos avanzados básicos
+                    const rand = Math.random();
+                    if (rand < 0.05) enemyType = 'fire';
+                    else if (rand < 0.10) enemyType = 'earth';
+                    else if (rand < 0.15) enemyType = 'shadow';
+                    else if (rand < 0.20) enemyType = 'lightning';
+                    else if (rand < 0.25) enemyType = 'poison';
+                    else if (rand < 0.30) enemyType = 'ice';
+                    else if (rand < 0.35) enemyType = 'necromancer';
+                    else if (rand < 0.45) enemyType = 'swarm';
+                    else if (rand < 0.55) enemyType = 'sniper';
+                    else if (rand < 0.65) enemyType = 'kamikaze';
+                    else if (rand < 0.75) enemyType = 'shield';
+                    else if (rand < 0.85) enemyType = 'berserker';
+                    else if (rand < 0.95) enemyType = 'healer';
+                    else enemyType = 'teleporter';
+                } else if (wave > 5) {
+                    // Enemigos básicos y algunos avanzados
+                    const rand = Math.random();
+                    if (rand < 0.15) enemyType = 'normal';
+                    else if (rand < 0.25) enemyType = 'fast';
+                    else if (rand < 0.35) enemyType = 'tank';
+                    else if (rand < 0.45) enemyType = 'shooter';
+                    else if (rand < 0.55) enemyType = 'explosive';
+                    else if (rand < 0.65) enemyType = 'splitter';
+                    else if (rand < 0.75) enemyType = 'teleporter';
+                    else if (rand < 0.85) enemyType = 'shield';
+                    else if (rand < 0.90) enemyType = 'berserker';
+                    else if (rand < 0.95) enemyType = 'healer';
+                    else enemyType = 'swarm';
+                } else {
+                    // Oleadas iniciales - solo enemigos básicos
+                    const rand = Math.random();
+                    if (rand < 0.40) enemyType = 'normal';
+                    else if (rand < 0.60) enemyType = 'fast';
+                    else if (rand < 0.80) enemyType = 'tank';
+                    else if (rand < 0.90) enemyType = 'shooter';
+                    else enemyType = 'explosive';
+                }
+
+                // Inyectar nuevos tipos especiales con baja probabilidad desde oleada 10
+                if (wave >= 10) {
+                    const r = Math.random();
+                    if (r < 0.05) enemyType = 'ray';
+                    else if (r < 0.08) enemyType = 'terraformer';
+                }
+
+                const enemy = createEnemy(enemyType, x, y);
+                enemy.health = Math.floor(enemy.health * (1 + wave * 0.1));
+                enemy.maxHealth = enemy.health;
+                enemy.speed *= (1 + wave * 0.05);
+                enemy.damage = Math.floor(enemy.damage * (1 + wave * 0.1));
+                enemies.push(enemy);
+            }
+        }
+
+        function addXP(amount) {
+            const original = amount;
+            // Reducir ganancia de XP global para hacer ms difcil subir
+            const modifier = (game.wave >= 30) ? 0.6 : 0.7;
+            const xpGain = Math.max(1, Math.floor(amount * modifier));
+            player.xp += xpGain;
+            game.score += xpGain;
+            // Mantener economa: dinero basado en cantidad original
+            game.money += Math.floor(original / 5); // 1 dinero por cada 5 XP original
+            if (player.xp >= player.xpToNext) levelUp();
+            updateHUD();
+        }
+
+        function levelUp() {
+            player.level++;
+            player.xp -= player.xpToNext;
+            // Hacer curva ms exigente
+            player.xpToNext = Math.floor(player.xpToNext * 1.35 + 20);
+            showLevelUpEffect();
+            showSkillMenu();
+        }
+
+        function showLevelUpEffect() {
+            const effect = document.createElement('div');
+            effect.className = 'level-up-effect';
+            effect.textContent = `NIVEL ${player.level}!`;
+            document.body.appendChild(effect);
+            setTimeout(() => document.body.removeChild(effect), 2000);
+        }
+
+        function showSkillMenu() {
+            game.paused = true;
+            const skillMenu = document.getElementById('skillMenu');
+            skillMenu.innerHTML = '';
+            
+            const selectedSkills = [];
+            for (let i = 0; i < 3; i++) {
+                const rarity = getRandomRarity();
+                const availableSkills = skillPool.filter(skill => skill.rarity === rarity && getSkillLevel(skill.type) < skill.maxLevel);
+                if (availableSkills.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * availableSkills.length);
+                    selectedSkills.push(availableSkills[randomIndex]);
+                }
+            }
+            
+            selectedSkills.forEach((skill, index) => {
+                const skillElement = document.createElement('div');
+                skillElement.className = `skill-option ${skill.rarity}`;
+                skillElement.onclick = () => selectSkill(index);
+                skillElement.innerHTML = `<div class="skill-name">${skill.name}</div><div class="skill-description">${skill.description}</div>`;
+                skillMenu.appendChild(skillElement);
+            });
+            
+            document.getElementById('skillOverlay').classList.add('show');
+        }
+
+        function getRandomRarity() {
+            const rand = Math.random();
+            if (rand < 0.6) return 'common';
+            if (rand < 0.85) return 'rare';
+            if (rand < 0.95) return 'epic';
+            return 'legendary';
+        }
+
+        function selectSkill(index) {
+            document.querySelectorAll('.skill-option').forEach(el => el.classList.remove('selected'));
+            document.querySelectorAll('.skill-option')[index].classList.add('selected');
+            document.getElementById('confirmSkillBtn').disabled = false;
+            window.selectedSkillIndex = index;
+        }
+
+        function confirmSkill() {
+            const skillMenu = document.getElementById('skillMenu');
+            const selectedElement = skillMenu.querySelector('.selected');
+            if (!selectedElement) return;
+            const skillIndex = Array.from(skillMenu.children).indexOf(selectedElement);
+            const skill = getAvailableSkills()[skillIndex];
+            applySkill(skill);
+            document.getElementById('skillOverlay').classList.remove('show');
+            game.paused = false;
+            updateHUD();
+        }
+
+        function getAvailableSkills() {
+            const selectedSkills = [];
+            for (let i = 0; i < 3; i++) {
+                const rarity = getRandomRarity();
+                const availableSkills = skillPool.filter(skill => skill.rarity === rarity && getSkillLevel(skill.type) < skill.maxLevel);
+                if (availableSkills.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * availableSkills.length);
+                    selectedSkills.push(availableSkills[randomIndex]);
+                }
+            }
+            return selectedSkills;
+        }
+
+        function getSkillLevel(skillType) {
+            switch (skillType) {
+                case 'damage': return Math.floor((player.damage - 1) / 1);
+                case 'fireRate': return Math.floor((0.3 - player.fireRate) / 0.3 * 3);
+                case 'multiShot': return player.multiShot - 1;
+                case 'spread': return Math.floor(player.spreadAngle / 0.3);
+                case 'speed': return Math.floor((player.speed - 200) / 50);
+                case 'regeneration': return Math.floor(player.regeneration / 2);
+                case 'bulletSize': return Math.floor((player.bulletSize - 4) / 2);
+                case 'bulletSpeed': return Math.floor((player.bulletSpeed - 400) / 200);
+                case 'criticalChance': return Math.floor(player.criticalChance / 0.1);
+                default: return 0;
+            }
+        }
+
+        function applySkill(skill) {
+            switch (skill.type) {
+                case 'damage': 
+                    player.damage += skill.value; 
+                    playerSkills.damage += skill.value;
+                    break;
+                case 'fireRate': 
+                    player.fireRate *= skill.value; 
+                    playerSkills.fireRate++;
+                    break;
+                case 'multiShot': 
+                    player.multiShot += skill.value; 
+                    playerSkills.multiShot += skill.value;
+                    break;
+                case 'spread': 
+                    player.spreadAngle += skill.value; 
+                    playerSkills.spread++;
+                    break;
+                case 'speed': 
+                    player.speed *= skill.value; 
+                    playerSkills.speed++;
+                    break;
+                case 'regeneration': 
+                    player.regeneration += skill.value; 
+                    playerSkills.regeneration += skill.value;
+                    break;
+                case 'bulletSize': 
+                    player.bulletSize *= skill.value; 
+                    playerSkills.bulletSize++;
+                    break;
+                case 'bulletSpeed': 
+                    player.bulletSpeed *= skill.value; 
+                    playerSkills.bulletSpeed++;
+                    break;
+                case 'criticalChance': 
+                    player.criticalChance += skill.value; 
+                    playerSkills.criticalChance++;
+                    break;
+                case 'maxHealth': 
+                    player.maxHealth += skill.value; 
+                    player.health += skill.value; 
+                    playerSkills.maxHealth += skill.value;
+                    break;
+                case 'explosive': 
+                    player.isExplosive = true; 
+                    playerSkills.explosive = true;
+                    break;
+                case 'fireTrail': 
+                    player.hasFireTrail = true; 
+                    playerSkills.fireTrail = true;
+                    break;
+                case 'orbiting': 
+                    player.hasOrbiting = true; 
+                    playerSkills.orbiting = true;
+                    break;
+            }
+        }
+
+        function createParticles(x, y, color, count = 5) {
+            for (let i = 0; i < count; i++) {
+                particles.push({ x, y, vx: random(-100, 100), vy: random(-100, 100), life: 1000, maxLife: 1000, color, size: random(2, 4) });
+            }
+        }
+
+        function showFloatingText(x, y, text, color = '#4CAF50') {
+            const textEl = document.createElement('div');
+            textEl.className = 'floating-text';
+            textEl.textContent = text;
+            textEl.style.left = x + 'px';
+            textEl.style.top = y + 'px';
+            textEl.style.color = color;
+            document.body.appendChild(textEl);
+            setTimeout(() => document.body.removeChild(textEl), 1000);
+        }
+
+        function showDamageFlash() {
+            const flash = document.createElement('div');
+            flash.className = 'damage-flash';
+            document.body.appendChild(flash);
+            setTimeout(() => document.body.removeChild(flash), 200);
+        }
+
+        function checkAchievements() {
+            if (game.bossesKilled >= 1 && !game.achievements) {
+                showAchievement('Primer boss derrotado!');
+                game.achievements = true;
+            }
+            if (game.wave >= 50 && !game.wave50) {
+                showAchievement('Llegaste a la oleada 50!');
+                game.wave50 = true;
+            }
+            if (game.enemiesKilled >= 1000 && !game.killer) {
+                showAchievement('Mataste 1000 enemigos!');
+                game.killer = true;
+            }
+        }
+
+        function showAchievement(text) {
+            const achievement = document.createElement('div');
+            achievement.className = 'achievement';
+            achievement.textContent = text;
+            document.body.appendChild(achievement);
+            setTimeout(() => document.body.removeChild(achievement), 3000);
+        }
+
+        function toggleShop() {
+            const shopOverlay = document.getElementById('shopOverlay');
+            if (shopOverlay.classList.contains('show')) {
+                closeShop();
+            } else {
+                openShop();
+            }
+        }
+
+        function openShop() {
+            game.paused = true;
+            document.getElementById('moneyText').textContent = game.money;
+            updateShopMenu();
+            document.getElementById('shopOverlay').classList.add('show');
+        }
+
+        function closeShop() {
+            game.paused = false;
+            document.getElementById('shopOverlay').classList.remove('show');
+        }
+
+        function updateShopMenu() {
+            const shopMenu = document.getElementById('shopMenu');
+            shopMenu.innerHTML = '';
+            
+            shopItems.forEach((item, index) => {
+                const itemElement = document.createElement('div');
+                const canAfford = game.money >= item.price;
+                
+                itemElement.className = `shop-item ${canAfford ? 'affordable' : 'expensive'}`;
+                if (canAfford) {
+                    itemElement.onclick = () => buyItem(index);
+                } else {
+                    itemElement.onclick = () => showFloatingText(canvas.width/2, canvas.height/2, 'Dinero insuficiente', '#f44336');
+                }
+                itemElement.innerHTML = `
+                    <div class="shop-name">${item.icon} ${item.name}</div>
+                    <div class="shop-description">${item.description}</div>
+                    <div class="shop-price">${item.price} 💰</div>
+                `;
+                shopMenu.appendChild(itemElement);
+            });
+        }
+
+        function buyItem(itemIndex) {
+            const item = shopItems[itemIndex];
+            const now = Date.now();
+            if (now - lastShopClick < 200) return; // anti doble click
+            lastShopClick = now;
+            if (game.money >= item.price) {
+                game.money -= item.price;
+                applyShopItem(item);
+                updateShopMenu();
+                updateHUD();
+                showFloatingText(canvas.width/2, canvas.height/2, `Comprado: ${item.name}`, '#ffd700');
+            } else {
+                showFloatingText(canvas.width/2, canvas.height/2, 'Dinero insuficiente', '#f44336');
+            }
+        }
+
+        function applyShopItem(item) {
+            switch (item.type) {
+                case 'heal':
+                    player.health = Math.min(player.maxHealth, player.health + item.value);
+                    break;
+                case 'maxHealth':
+                    player.maxHealth += item.value;
+                    player.health += item.value;
+                    break;
+                case 'damage':
+                    player.damage += item.value;
+                    break;
+                case 'speed':
+                    player.speed *= item.value;
+                    break;
+                case 'criticalChance':
+                    player.criticalChance += item.value;
+                    break;
+                case 'multiShot':
+                    player.multiShot += item.value;
+                    break;
+                case 'fireRate':
+                    player.fireRate *= item.value;
+                    break;
+                case 'regeneration':
+                    player.regeneration += item.value;
+                    break;
+            }
+        }
+
+        // Funciones de fusión de habilidades
+        function toggleFusion() {
+            const fusionOverlay = document.getElementById('fusionOverlay');
+            if (fusionOverlay.classList.contains('show')) {
+                closeFusion();
+            } else {
+                openFusion();
+            }
+        }
+
+        function openFusion() {
+            game.paused = true;
+            document.getElementById('moneyTextFusion').textContent = game.money;
+            updateFusionMenu();
+            document.getElementById('fusionOverlay').classList.add('show');
+        }
+
+        function closeFusion() {
+            game.paused = false;
+            document.getElementById('fusionOverlay').classList.remove('show');
+        }
+
+        function updateFusionMenu() {
+            const fusionMenu = document.getElementById('fusionMenu');
+            fusionMenu.innerHTML = '';
+            
+            Object.keys(skillFusions).forEach(fusionKey => {
+                const fusion = skillFusions[fusionKey];
+                const hasRequirements = checkFusionRequirements(fusion.requirements);
+                const canAfford = game.money >= 50;
+                
+                const fusionElement = document.createElement('div');
+                const enabled = canAfford && hasRequirements;
+                fusionElement.className = `fusion-option ${enabled ? 'affordable' : 'expensive'}`;
+                if (enabled) {
+                    fusionElement.onclick = () => buyFusion(fusionKey);
+                } else {
+                    fusionElement.onclick = () => {
+                        const msg = !hasRequirements ? 'Faltan requisitos' : 'Dinero insuficiente';
+                        showFloatingText(canvas.width/2, canvas.height/2, msg, '#f44336');
+                    };
+                }
+                
+                const requirementsText = fusion.requirements.map(req => getSkillName(req)).join(' + ');
+                
+                fusionElement.innerHTML = `
+                    <div class="fusion-name">${fusion.name}</div>
+                    <div class="fusion-description">${fusion.description}</div>
+                    <div class="fusion-requirements">Requiere: ${requirementsText}</div>
+                `;
+                fusionMenu.appendChild(fusionElement);
+            });
+        }
+
+        function checkFusionRequirements(requirements) {
+            return requirements.every(req => playerSkills[req] > 0);
+        }
+
+        function getSkillName(skillType) {
+            const skillNames = {
+                'damage': 'Aumentar Daño',
+                'fireRate': 'Disparo Rápido',
+                'multiShot': 'Disparo Doble/Triple',
+                'spread': 'Dispersión',
+                'bulletSize': 'Proyectiles Grandes',
+                'bulletSpeed': 'Proyectiles Rápidos',
+                'criticalChance': 'Golpe Crítico',
+                'speed': 'Velocidad',
+                'regeneration': 'Regeneración',
+                'maxHealth': 'Vida Extra'
+            };
+            return skillNames[skillType] || skillType;
+        }
+
+        function buyFusion(fusionKey) {
+            const fusion = skillFusions[fusionKey];
+            const now = Date.now();
+            if (now - lastFusionClick < 200) return; // anti doble click
+            lastFusionClick = now;
+            if (game.money >= 50 && checkFusionRequirements(fusion.requirements)) {
+                game.money -= 50;
+                applyFusion(fusion);
+                updateFusionMenu();
+                updateHUD();
+                showFloatingText(canvas.width/2, canvas.height/2, `Fusión: ${fusion.name}`, '#ffd700');
+            } else {
+                const msg = !checkFusionRequirements(fusion.requirements) ? 'Faltan requisitos' : 'Dinero insuficiente';
+                showFloatingText(canvas.width/2, canvas.height/2, msg, '#f44336');
+            }
+        }
+
+        function applyFusion(fusion) {
+            switch (fusion.type) {
+                case 'mega_damage_fireRate':
+                    player.damage += 3;
+                    player.fireRate *= 0.6;
+                    break;
+                case 'mega_multiShot_spread':
+                    player.multiShot = 5;
+                    player.spreadAngle = 0.8;
+                    break;
+                case 'mega_bulletSize_speed':
+                    player.bulletSize *= 2;
+                    player.bulletSpeed *= 2;
+                    break;
+                case 'mega_critical_damage':
+                    player.criticalChance += 0.25;
+                    player.damage += 5;
+                    break;
+                case 'mega_speed_regen':
+                    player.speed *= 1.5;
+                    player.regeneration += 5;
+                    break;
+                case 'mega_health_regen':
+                    player.maxHealth += 100;
+                    player.health += 100;
+                    player.regeneration += 3;
+                    break;
+            }
+        }
+
+        function screenShake(intensity = 10, duration = 500) {
+            const canvas = document.getElementById('gameCanvas');
+            const originalX = canvas.style.transform || '';
+            let shakeX, shakeY;
+            let startTime = Date.now();
+            
+            function shake() {
+                const elapsed = Date.now() - startTime;
+                const progress = elapsed / duration;
+                
+                if (progress >= 1) {
+                    canvas.style.transform = originalX;
+                    return;
+                }
+                
+                const currentIntensity = intensity * (1 - progress);
+                shakeX = (Math.random() - 0.5) * currentIntensity;
+                shakeY = (Math.random() - 0.5) * currentIntensity;
+                
+                canvas.style.transform = `translate(${shakeX}px, ${shakeY}px)`;
+                requestAnimationFrame(shake);
+            }
+            
+            shake();
+        }
+
+        function angleToPlayer(enemy) {
+            return Math.atan2(player.y - enemy.y, player.x - enemy.x);
+        }
+        
+        function checkTerrainCollision(x, y, size) {
+            const halfSize = size / 2;
+            const points = [
+                { x: x - halfSize, y: y - halfSize },
+                { x: x + halfSize, y: y - halfSize },
+                { x: x + halfSize, y: y + halfSize },
+                { x: x - halfSize, y: y + halfSize }
+            ];
+            
+            for (const point of points) {
+                if (terrain.getCell(point.x, point.y) === 1) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // Shop confirmation dialog
+        let pendingPurchase = null;
+        
+        // Show confirmation dialog
+        function showConfirmationDialog(item, callback) {
+            const dialog = document.createElement('div');
+            dialog.className = 'overlay';
+            dialog.style.display = 'flex';
+            dialog.style.zIndex = '2000';
+            
+            dialog.innerHTML = `
+                <div class="modal" style="max-width: 400px;">
+                    <h2>Confirmar Compra</h2>
+                    <p>¿Estás seguro de que quieres comprar <strong>${item.name}</strong> por ${item.price} 💰?</p>
+                    <div style="margin: 20px 0; padding: 15px; background: #2a2a2a; border-radius: 10px;">
+                        <div style="font-weight: bold; margin-bottom: 5px;">${item.name} ${item.icon || ''}</div>
+                        <div style="color: #aaa; font-size: 0.9em;">${item.description}</div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <button class="btn" style="background: #f44336;" onclick="this.parentNode.parentNode.parentNode.remove(); pendingPurchase = null;">
+                            Cancelar
+                        </button>
+                        <button class="btn" style="background: #4CAF50;" onclick="this.parentNode.parentNode.parentNode.remove(); if(callback) callback();">
+                            Comprar (${item.price} 💰)
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(dialog);
+        }
+        
+        // Update shop menu with confirmation
+        function updateShopMenu() {
+            const shopMenu = document.getElementById('shopMenu');
+            if (!shopMenu) return;
+            
+            shopMenu.innerHTML = '';
+            
+            shopItems.forEach((item, index) => {
+                const itemElement = document.createElement('div');
+                const affordable = game.money >= item.price;
+                
+                itemElement.className = `shop-item ${affordable ? 'affordable' : 'expensive'}`;
+                itemElement.innerHTML = `
+                    <div class="shop-name">${item.name} ${item.icon || ''}</div>
+                    <div class="shop-description">${item.description}</div>
+                    <div class="shop-price">${item.price} 💰</div>
+                `;
+                
+                if (affordable) {
+                    itemElement.onclick = () => {
+                        if (pendingPurchase) return; // Prevent multiple dialogs
+                        pendingPurchase = item;
+                        showConfirmationDialog(item, () => {
+                            buyItem(index);
+                            pendingPurchase = null;
+                        });
+                    };
+                }
+                
+                shopMenu.appendChild(itemElement);
+            });
+            
+            document.getElementById('moneyText').textContent = game.money;
+            document.getElementById('moneyTextHUD').textContent = game.money;
+        }
+        
+        // Update fusion menu with confirmation
+        function updateFusionMenu() {
+            const fusionMenu = document.getElementById('fusionMenu');
+            if (!fusionMenu) return;
+            
+            fusionMenu.innerHTML = '';
+            
+            Object.entries(skillFusions).forEach(([key, fusion]) => {
+                const hasRequirements = checkFusionRequirements(fusion.requirements);
+                const canAfford = game.money >= 50;
+                
+                const fusionElement = document.createElement('div');
+                fusionElement.className = `fusion-option ${hasRequirements && canAfford ? 'affordable' : 'expensive'}`;
+                
+                fusionElement.innerHTML = `
+                    <div class="fusion-name">${fusion.name}</div>
+                    <div class="fusion-description">${fusion.description}</div>
+                    <div class="fusion-requirements">
+                        Requiere: ${fusion.requirements.map(req => getSkillName(req)).join(' + ')}
+                    </div>
+                `;
+                
+                if (hasRequirements && canAfford) {
+                    fusionElement.onclick = () => {
+                        if (pendingPurchase) return; // Prevent multiple dialogs
+                        pendingPurchase = fusion;
+                        showConfirmationDialog(
+                            { 
+                                name: fusion.name, 
+                                description: fusion.description, 
+                                price: 50,
+                                icon: '⚗️'
+                            }, 
+                            () => {
+                                buyFusion(key);
+                                pendingPurchase = null;
+                            }
+                        );
+                    };
+                }
+                
+                fusionMenu.appendChild(fusionElement);
+            });
+            
+            document.getElementById('moneyTextFusion').textContent = game.money;
+        }
+        
+        function update(deltaTime) {
+            if (!game.running || game.paused) return;
+
+            updateWeather(deltaTime);
+
+            let moveX = 0, moveY = 0;
+            if (keys['a'] || keys['arrowleft']) moveX -= 1;
+            if (keys['d'] || keys['arrowright']) moveX += 1;
+            if (keys['w'] || keys['arrowup']) moveY -= 1;
+            if (keys['s'] || keys['arrowdown']) moveY += 1;
+
+            if (moveX !== 0 || moveY !== 0) {
+                const length = Math.sqrt(moveX * moveX + moveY * moveY);
+                moveX /= length; moveY /= length;
+                let currentSpeed = player.speed;
+                if (player.slowed && Date.now() < (player.slowEnd || 0)) {
+                    currentSpeed *= 0.5;
+                } else if (player.slowed) {
+                    player.slowed = false;
+                }
+                if (player.stunned && Date.now() < (player.lastStun || 0) + (player.stunDuration || 0)) {
+                    currentSpeed = 0;
+                }
+                player.x += moveX * currentSpeed * deltaTime;
+                player.y += moveY * currentSpeed * deltaTime;
+                player.x = clamp(player.x, player.size/2, canvas.width - player.size/2);
+                const minY = getTopBarrierY() + player.size/2;
+                player.y = clamp(player.y, minY, canvas.height - player.size/2);
+
+                // Resolver colisiones con paredes (walls)
+                for (let w = 0; w < walls.length; w++) {
+                    const wall = walls[w];
+                    const half = player.size / 2;
+                    const closestX = clamp(player.x, wall.x, wall.x + wall.width);
+                    const closestY = clamp(player.y, wall.y, wall.y + wall.height);
+                    const dx = player.x - closestX;
+                    const dy = player.y - closestY;
+                    const overlap = half - Math.sqrt(dx * dx + dy * dy);
+                    if (overlap > 0) {
+                        // Empujar al jugador fuera en el eje dominante
+                        if (Math.abs(dx) > Math.abs(dy)) {
+                            player.x += Math.sign(dx) * overlap;
+                        } else {
+                            player.y += Math.sign(dy) * overlap;
+                        }
+                    }
+                }
+            }
+
+            if (keys[' '] || mouse.down) shoot();
+
+            if (player.regeneration > 0) {
+                const now = Date.now();
+                if (now - player.lastRegen > 8000) { // 8 segundos
+                    player.health = Math.min(player.maxHealth, player.health + player.regeneration);
+                    player.lastRegen = now;
+                    updateHUD();
+                }
+            }
+
+            // Manejar efectos de estado del jugador
+            const now = Date.now();
+            
+            // Envenenamiento
+            if (player.poisoned && now - player.lastPoisonDamage > 1000) {
+                player.health -= player.poisonDamage;
+                player.lastPoisonDamage = now;
+                player.poisonDuration -= 1000;
+                if (player.poisonDuration <= 0) {
+                    player.poisoned = false;
+                }
+                createParticles(player.x, player.y, '#32cd32', 3);
+                updateHUD();
+                if (player.health <= 0) { gameOver(); return; }
+            }
+            
+            // Quemadura
+            if (player.burning && now - player.lastBurnDamage > 500) {
+                player.health -= player.burnDamage;
+                player.lastBurnDamage = now;
+                player.burnDuration -= 500;
+                if (player.burnDuration <= 0) {
+                    player.burning = false;
+                }
+                createParticles(player.x, player.y, '#ff4500', 3);
+                updateHUD();
+                if (player.health <= 0) { gameOver(); return; }
+            }
+            
+            // Aturdimiento
+            if (player.stunned && now - player.lastStun > player.stunDuration) {
+                player.stunned = false;
+            }
+            
+            // Restaurar velocidad si fue reducida por hielo
+            if (player.speed < 200 && !player.stunned) {
+                player.speed = 200;
+            }
+
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const bullet = bullets[i];
+                bullet.x += bullet.vx * deltaTime;
+                bullet.y += bullet.vy * deltaTime;
+                bullet.life -= deltaTime * 1000;
+                if (bullet.life <= 0 || bullet.x < 0 || bullet.x > canvas.width || bullet.y < 0 || bullet.y > canvas.height) {
+                    bullets.splice(i, 1);
+                }
+            }
+
+            // Actualizar peligros de clima (hazards)
+            for (let i = hazards.length - 1; i >= 0; i--) {
+                const hz = hazards[i];
+                if (hz.type === 'lightning') {
+                    // golpe instantáneo, dura muy poco
+                    if (!hz.applied) {
+                        const dx = player.x - hz.x;
+                        const dy = player.y - hz.y2; // punto de impacto
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist < hz.radius) {
+                            player.health -= hz.damage;
+                            updateHUD();
+                            if (player.health <= 0) { gameOver(); return; }
+                        }
+                        hz.applied = true;
+                        screenShake(12, 300);
+                        createParticles(hz.x, hz.y2, '#ffff88', 20);
+                    }
+                    hz.life -= deltaTime * 1000;
+                    if (hz.life <= 0) hazards.splice(i, 1);
+                } else if (hz.type === 'tornado') {
+                    // Movimiento del tornado
+                    hz.x += hz.vx * deltaTime;
+                    hz.y += hz.vy * deltaTime;
+                    // aplicar fuerza de succión al jugador
+                    const dx = hz.x - player.x;
+                    const dy = hz.y - player.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+                    if (dist < hz.radius * 2) {
+                        const pull = (hz.radius * 2 - dist) * 0.5;
+                        player.x += (dx / dist) * pull * deltaTime;
+                        player.y += (dy / dist) * pull * deltaTime;
+                        // daño si entra al núcleo
+                        if (dist < hz.radius * 0.6) {
+                            player.health -= hz.damage * deltaTime;
+                            updateHUD();
+                            if (player.health <= 0) { gameOver(); return; }
+                        }
+                    }
+                    hz.life -= deltaTime * 1000;
+                    if (hz.life <= 0) hazards.splice(i, 1);
+                }
+            }
+
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                
+                // Manejar enemigos cuánticos temporales
+                if (enemy.isQuantum && enemy.quantumLife) {
+                    enemy.quantumLife -= deltaTime * 1000;
+                    if (enemy.quantumLife <= 0) {
+                        enemies.splice(i, 1);
+                        continue;
+                    }
+                }
+                
+                const dx = player.x - enemy.x;
+                const dy = player.y - enemy.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                // Habilidad de teletransporte
+                if (enemy.canTeleport && dist < 150 && dist > 80) {
+                    const now = Date.now();
+                    if (now - enemy.lastTeleport > enemy.teleportCooldown) {
+                        const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+                        enemy.x = player.x + Math.cos(angle) * -100;
+                        enemy.y = player.y + Math.sin(angle) * -100;
+                        enemy.lastTeleport = now;
+                        createParticles(enemy.x, enemy.y, '#8844ff', 10);
+                        screenShake(5, 200); // Temblor pequeño al teletransportarse
+                    }
+                }
+                
+                if (dist > 0) {
+                    enemy.vx = (dx / dist) * enemy.speed;
+                    enemy.vy = (dy / dist) * enemy.speed;
+                }
+                enemy.x += enemy.vx * deltaTime;
+                enemy.y += enemy.vy * deltaTime;
+
+                // Rayo (beam) directo al jugador
+                if (enemy.canBeam && dist < enemy.shootRange) {
+                    const now = Date.now();
+                    if (now - enemy.lastBeam > enemy.beamCooldown) {
+                        const ang = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+                        const length = Math.max(canvas.width, canvas.height) * 1.5;
+                        const x2 = enemy.x + Math.cos(ang) * length;
+                        const y2 = enemy.y + Math.sin(ang) * length;
+                        bullets.push({ isEnemyBullet: true, isBeam: true, x1: enemy.x, y1: enemy.y, x2, y2, life: enemy.beamDuration, damage: enemy.damage * 2, lastTick: 0, tickMs: 100 });
+                        enemy.lastBeam = now;
+                        createParticles(enemy.x, enemy.y, '#ffd700', 8);
+                    }
+                }
+
+                // Terraforming: crear paredes tipo laberinto
+                if (enemy.canTerraform) {
+                    const now = Date.now();
+                    if (now - enemy.lastTerraform > enemy.terraformCooldown) {
+                        const baseY = Math.max(getTopBarrierY() + 4, 0);
+                        const count = 3 + Math.floor(Math.random() * 3);
+                        for (let t = 0; t < count; t++) {
+                            const dir = Math.random() < 0.5 ? 'h' : 'v';
+                            const len = 80 + Math.floor(Math.random() * 120);
+                            const thickness = 12;
+                            const offsetX = (Math.random() - 0.5) * 120;
+                            const offsetY = (Math.random() - 0.5) * 120;
+                            let wx = Math.floor(enemy.x + offsetX);
+                            let wy = Math.floor(Math.max(baseY, enemy.y + offsetY));
+                            if (dir === 'h') {
+                                walls.push({ x: clamp(wx - len/2, 0, canvas.width - len), y: clamp(wy - thickness/2, baseY, canvas.height - thickness), width: len, height: thickness });
+                            } else {
+                                walls.push({ x: clamp(wx - thickness/2, 0, canvas.width - thickness), y: clamp(wy - len/2, baseY, canvas.height - len), width: thickness, height: len });
+                            }
+                            if (walls.length > 200) walls.shift();
+                        }
+                        enemy.lastTerraform = now;
+                        createParticles(enemy.x, enemy.y, '#8b5a2b', 10);
+                        screenShake(4, 300);
+                    }
+                }
+
+                // Habilidad de curación
+                if (enemy.canHeal) {
+                    const now = Date.now();
+                    if (now - enemy.lastHeal > enemy.healCooldown) {
+                        for (let k = 0; k < enemies.length; k++) {
+                            const otherEnemy = enemies[k];
+                            if (otherEnemy !== enemy && distance(enemy.x, enemy.y, otherEnemy.x, otherEnemy.y) < enemy.healRange) {
+                                otherEnemy.health = Math.min(otherEnemy.maxHealth, otherEnemy.health + 1);
+                                createParticles(otherEnemy.x, otherEnemy.y, '#44ff88', 3);
+                            }
+                        }
+                        enemy.lastHeal = now;
+                    }
+                }
+
+                // Habilidad de spawn (para bosses y nigromantes)
+                if (enemy.canSpawn && (enemy.isBoss || enemy.type === 'necromancer')) {
+                    const now = Date.now();
+                    if (now - enemy.lastSpawn > enemy.spawnCooldown) {
+                        const spawnCount = enemy.isBoss ? 8 : 4;
+                        const strongEnemyTypes = enemy.isBoss ? 
+                            ['tank', 'berserker', 'shield', 'shooter', 'explosive'] :
+                            ['normal', 'fast', 'tank', 'shooter'];
+                        
+                        for (let s = 0; s < spawnCount; s++) {
+                            const spawnAngle = (s / spawnCount) * Math.PI * 2;
+                            const spawnDistance = enemy.isBoss ? 60 : 40;
+                            const spawnX = enemy.x + Math.cos(spawnAngle) * spawnDistance;
+                            const spawnY = enemy.y + Math.sin(spawnAngle) * spawnDistance;
+                            
+                            const randomType = strongEnemyTypes[Math.floor(Math.random() * strongEnemyTypes.length)];
+                            const spawnedEnemy = createEnemy(randomType, spawnX, spawnY);
+                            
+                            // Hacer los enemigos spawn más fuertes
+                            const multiplier = enemy.isBoss ? 1.5 : 1.2;
+                            spawnedEnemy.health = Math.floor(spawnedEnemy.health * multiplier);
+                            spawnedEnemy.maxHealth = spawnedEnemy.health;
+                            spawnedEnemy.damage = Math.floor(spawnedEnemy.damage * multiplier);
+                            spawnedEnemy.speed *= multiplier;
+                            spawnedEnemy.xp = Math.floor(spawnedEnemy.xp * multiplier);
+                            
+                            enemies.push(spawnedEnemy);
+                        }
+                        
+                        enemy.lastSpawn = now;
+                        createParticles(enemy.x, enemy.y, enemy.isBoss ? '#8844ff' : '#8b008b', 15);
+                        showFloatingText(enemy.x, enemy.y, enemy.isBoss ? 'SPAWN!' : 'SUMMON!', enemy.isBoss ? '#8844ff' : '#8b008b');
+                        screenShake(enemy.isBoss ? 8 : 4, 500);
+                    }
+                }
+
+                // Habilidades especiales de enemigos avanzados
+                if (enemy.canSlow && checkCollision(enemy, player)) {
+                    player.slowed = true;
+                    player.slowEnd = Date.now() + (enemy.slowDuration || 3000);
+                    createParticles(enemy.x, enemy.y, '#87ceeb', 6);
+                }
+
+                if (enemy.canPoison && checkCollision(enemy, player)) {
+                    player.poisoned = true;
+                    player.poisonDamage = enemy.poisonDamage;
+                    player.poisonDuration = enemy.poisonDuration;
+                    player.lastPoisonDamage = Date.now();
+                    createParticles(enemy.x, enemy.y, '#32cd32', 8);
+                    showFloatingText(enemy.x, enemy.y, 'ENVENENADO!', '#32cd32');
+                }
+
+                if (enemy.canChain && Math.random() < 0.1) {
+                    // Rayo que salta entre enemigos
+                    const nearbyEnemies = enemies.filter(e => e !== enemy && distance(enemy.x, enemy.y, e.x, e.y) < enemy.chainRange);
+                    if (nearbyEnemies.length > 0) {
+                        const target = nearbyEnemies[Math.floor(Math.random() * nearbyEnemies.length)];
+                        target.health -= enemy.damage;
+                        createParticles(enemy.x, enemy.y, '#ffff00', 5);
+                        createParticles(target.x, target.y, '#ffff00', 5);
+                    }
+                }
+
+                if (enemy.canPhase) {
+                    const now = Date.now();
+                    if (now - enemy.lastPhase > enemy.phaseCooldown) {
+                        enemy.x += (Math.random() - 0.5) * 200;
+                        enemy.y += (Math.random() - 0.5) * 200;
+                        enemy.lastPhase = now;
+                        createParticles(enemy.x, enemy.y, '#2f4f4f', 10);
+                    }
+                }
+
+                if (enemy.canBurn && checkCollision(enemy, player)) {
+                    player.burning = true;
+                    player.burnDamage = enemy.burnDamage;
+                    player.burnDuration = enemy.burnDuration;
+                    player.lastBurnDamage = Date.now();
+                    createParticles(enemy.x, enemy.y, '#ff4500', 8);
+                    showFloatingText(enemy.x, enemy.y, 'QUEMADO!', '#ff4500');
+                }
+
+                if (enemy.canStun && checkCollision(enemy, player)) {
+                    player.stunned = true;
+                    player.stunDuration = enemy.stunDuration;
+                    player.lastStun = Date.now();
+                    createParticles(enemy.x, enemy.y, '#8b4513', 8);
+                    showFloatingText(enemy.x, enemy.y, 'ATURDIDO!', '#8b4513');
+                }
+
+                if (enemy.canDrain) {
+                    const now = Date.now();
+                    if (now - enemy.lastDrain > enemy.drainCooldown && checkCollision(enemy, player)) {
+                        player.health -= enemy.drainAmount;
+                        enemy.health = Math.min(enemy.maxHealth, enemy.health + enemy.drainAmount);
+                        enemy.lastDrain = now;
+                        createParticles(enemy.x, enemy.y, '#800080', 8);
+                        showFloatingText(enemy.x, enemy.y, 'DRENADO!', '#800080');
+                    }
+                }
+
+                if (enemy.canPassThrough) {
+                    const now = Date.now();
+                    if (now - enemy.lastPass > enemy.passCooldown) {
+                        enemy.canCollide = false;
+                        enemy.lastPass = now;
+                        setTimeout(() => { enemy.canCollide = true; }, 2000);
+                        createParticles(enemy.x, enemy.y, '#f0f8ff', 10);
+                    }
+                }
+
+                if (enemy.canShield) {
+                    const now = Date.now();
+                    if (now - enemy.lastShield > enemy.shieldCooldown && enemy.health < enemy.maxHealth * 0.5) {
+                        enemy.hasShield = true;
+                        enemy.shieldHealth = 3;
+                        enemy.maxShieldHealth = 3;
+                        enemy.lastShield = now;
+                        createParticles(enemy.x, enemy.y, '#c0c0c0', 12);
+                        showFloatingText(enemy.x, enemy.y, 'ESCUDO!', '#c0c0c0');
+                    }
+                }
+
+                if (enemy.canEnrage && !enemy.enraged && enemy.health < enemy.maxHealth * enemy.enrageThreshold) {
+                    enemy.enraged = true;
+                    enemy.speed *= 1.5;
+                    enemy.damage *= 1.5;
+                    createParticles(enemy.x, enemy.y, '#8b0000', 8);
+                    showFloatingText(enemy.x, enemy.y, 'FURIOSO!', '#8b0000');
+                }
+
+                if (enemy.canBless) {
+                    const now = Date.now();
+                    if (now - enemy.lastBless > enemy.blessCooldown) {
+                        const nearbyEnemies = enemies.filter(e => e !== enemy && distance(enemy.x, enemy.y, e.x, e.y) < enemy.blessRange);
+                        nearbyEnemies.forEach(e => {
+                            e.health = Math.min(e.maxHealth, e.health + 2);
+                            e.damage *= 1.2;
+                        });
+                        enemy.lastBless = now;
+                        createParticles(enemy.x, enemy.y, '#ffffff', 15);
+                        showFloatingText(enemy.x, enemy.y, 'BENDECIDO!', '#ffffff');
+                    }
+                }
+
+                if (enemy.canReflect && Math.random() < enemy.reflectChance) {
+                    enemy.reflecting = true;
+                    createParticles(enemy.x, enemy.y, '#696969', 8);
+                }
+
+                if (enemy.canCast) {
+                    const now = Date.now();
+                    if (now - enemy.lastCast > enemy.castCooldown) {
+                        // Crear un proyectil mágico
+                        const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+                        const speedScale = 1 + (game.wave || 1) * 0.01;
+                        bullets.push({
+                            x: enemy.x, y: enemy.y, vx: Math.cos(angle) * 250 * speedScale, vy: Math.sin(angle) * 250 * speedScale,
+                            size: 8, damage: enemy.damage * 2, life: 3000, isEnemyBullet: true, isMagic: true
+                        });
+                        enemy.lastCast = now;
+                        createParticles(enemy.x, enemy.y, '#9370db', 10);
+                    }
+                }
+
+                if (enemy.canFly) {
+                    const now = Date.now();
+                    if (now - enemy.lastFly > enemy.flyCooldown) {
+                        enemy.y -= 100; // Volar hacia arriba
+                        enemy.lastFly = now;
+                        createParticles(enemy.x, enemy.y, '#ff4500', 12);
+                    }
+                }
+
+                if (enemy.canTentacle) {
+                    const now = Date.now();
+                    if (now - enemy.lastTentacle > enemy.tentacleCooldown) {
+                        // Crear tentáculos que atacan en diferentes direcciones
+                        for (let t = 0; t < enemy.tentacleCount; t++) {
+                            const angle = (t / enemy.tentacleCount) * Math.PI * 2;
+                            const speedScale = 1 + (game.wave || 1) * 0.01;
+                            bullets.push({
+                                x: enemy.x, y: enemy.y, vx: Math.cos(angle) * 200 * speedScale, vy: Math.sin(angle) * 200 * speedScale,
+                                size: 6, damage: enemy.damage, life: 2000, isEnemyBullet: true, isTentacle: true
+                            });
+                        }
+                        enemy.lastTentacle = now;
+                        createParticles(enemy.x, enemy.y, '#2e8b57', 15);
+                    }
+                }
+
+                if (enemy.canRevive && enemy.health <= 0) {
+                    enemy.health = enemy.reviveHealth;
+                    enemy.maxHealth = enemy.reviveHealth;
+                    createParticles(enemy.x, enemy.y, '#ff1493', 20);
+                    showFloatingText(enemy.x, enemy.y, 'REVIVIDO!', '#ff1493');
+                    screenShake(5, 300);
+                }
+
+                if (enemy.canStomp) {
+                    const now = Date.now();
+                    if (now - enemy.lastStomp > enemy.stompCooldown && distance(enemy.x, enemy.y, player.x, player.y) < enemy.stompRange) {
+                        player.health -= enemy.damage * 2;
+                        createParticles(enemy.x, enemy.y, '#8b4513', 20);
+                        showFloatingText(enemy.x, enemy.y, 'PISOTÓN!', '#8b4513');
+                        screenShake(10, 600);
+                        enemy.lastStomp = now;
+                    }
+                }
+
+                if (enemy.canVoid) {
+                    const now = Date.now();
+                    if (now - enemy.lastVoid > enemy.voidCooldown) {
+                        // Crear un vacío que absorbe al jugador
+                        const dx = player.x - enemy.x;
+                        const dy = player.y - enemy.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < 100) {
+                            player.x += dx * 0.1;
+                            player.y += dy * 0.1;
+                        }
+                        enemy.lastVoid = now;
+                        createParticles(enemy.x, enemy.y, '#000000', 15);
+                    }
+                }
+
+                if (enemy.canCrystalize && Math.random() < enemy.crystalizeChance) {
+                    enemy.health += 2; // Regenerar salud
+                    createParticles(enemy.x, enemy.y, '#00ffff', 8);
+                }
+
+                if (enemy.canStorm) {
+                    const now = Date.now();
+                    if (now - enemy.lastStorm > enemy.stormCooldown) {
+                        // Crear tormenta eléctrica
+                        for (let s = 0; s < 8; s++) {
+                            const angle = (s / 8) * Math.PI * 2;
+                            const distance = 150;
+                            const stormX = enemy.x + Math.cos(angle) * distance;
+                            const stormY = enemy.y + Math.sin(angle) * distance;
+                            bullets.push({
+                                x: stormX, y: stormY, vx: 0, vy: 0, size: 12, damage: Math.max(1, Math.floor(enemy.damage * 3)), life: 2000,
+                                isEnemyBullet: true, isStorm: true
+                            });
+                        }
+                        enemy.lastStorm = now;
+                        createParticles(enemy.x, enemy.y, '#4169e1', 20);
+                        screenShake(8, 800);
+                    }
+                }
+
+                if (enemy.canWarp) {
+                    const now = Date.now();
+                    if (now - enemy.lastWarp > enemy.warpCooldown) {
+                        // Teletransportarse cerca del jugador
+                        const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+                        enemy.x = player.x + Math.cos(angle + Math.PI) * 80;
+                        enemy.y = player.y + Math.sin(angle + Math.PI) * 80;
+                        enemy.lastWarp = now;
+                        createParticles(enemy.x, enemy.y, '#8a2be2', 15);
+                        screenShake(6, 400);
+                    }
+                }
+
+                if (enemy.canQuantum) {
+                    const now = Date.now();
+                    if (now - enemy.lastQuantum > enemy.quantumCooldown) {
+                        // Crear múltiples copias temporales
+                        for (let q = 0; q < 3; q++) {
+                            const quantumEnemy = createEnemy(enemy.type, enemy.x + (q - 1) * 50, enemy.y);
+                            quantumEnemy.health = 1;
+                            quantumEnemy.maxHealth = 1;
+                            quantumEnemy.isQuantum = true;
+                            quantumEnemy.quantumLife = 3000;
+                            enemies.push(quantumEnemy);
+                        }
+                        enemy.lastQuantum = now;
+                        createParticles(enemy.x, enemy.y, '#00ff7f', 18);
+                    }
+                }
+
+                if (enemy.canEntropy && Math.random() < enemy.entropyChance) {
+                    // Causar caos - cambiar propiedades aleatoriamente
+                    enemy.speed *= random(0.5, 1.5);
+                    enemy.damage *= random(0.5, 2.0);
+                    createParticles(enemy.x, enemy.y, '#ff4500', 10);
+                }
+
+                if (enemy.canPrimordial) {
+                    const now = Date.now();
+                    if (now - enemy.lastPrimordial > enemy.primordialCooldown) {
+                        // Ataque primordial devastador
+                        player.health -= enemy.damage * 5;
+                        createParticles(enemy.x, enemy.y, '#2f4f4f', 30);
+                        showFloatingText(enemy.x, enemy.y, 'PRIMORDIAL!', '#2f4f4f');
+                        screenShake(15, 1000);
+                        enemy.lastPrimordial = now;
+                    }
+                }
+
+                // Habilidad de disparo
+                if (enemy.canShoot && dist < enemy.shootRange) {
+                    const now = Date.now();
+                    if (now - enemy.lastShot > enemy.shootCooldown) {
+                        const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+                        const speedScale = 1 + (game.wave || 1) * 0.012;
+                        bullets.push({ x: enemy.x, y: enemy.y, vx: Math.cos(angle) * 300 * speedScale, vy: Math.sin(angle) * 300 * speedScale, size: 6, damage: enemy.damage, life: 2000, isEnemyBullet: true });
+                        enemy.lastShot = now;
+                    }
+                }
+
+                if (checkCollision(enemy, player) && (enemy.canCollide !== false)) {
+                    if (enemy.isKamikaze) {
+                        // Kamikaze explota al tocar al jugador
+                        createParticles(enemy.x, enemy.y, '#ff4444', 15);
+                        screenShake(8, 400);
+                        
+                        // Dañar al jugador y enemigos cercanos
+                        player.health -= enemy.damage;
+                        for (let k = enemies.length - 1; k >= 0; k--) {
+                            const otherEnemy = enemies[k];
+                            if (otherEnemy !== enemy && distance(enemy.x, enemy.y, otherEnemy.x, otherEnemy.y) < enemy.explosionRange) {
+                                otherEnemy.health -= enemy.damage;
+                                if (otherEnemy.health <= 0) {
+                                    enemies.splice(k, 1);
+                                    addXP(otherEnemy.xp);
+                                    game.enemiesKilled++;
+                                }
+                            }
+                        }
+                        
+                        // Remover el kamikaze
+                        enemies.splice(i, 1);
+                        addXP(enemy.xp);
+                        game.enemiesKilled++;
+                        showFloatingText(enemy.x, enemy.y, 'KAMIKAZE!', '#ff4444');
+                    } else {
+                        player.health -= enemy.damage;
+                    }
+                    
+                    updateHUD();
+                    showDamageFlash();
+                    createParticles(player.x, player.y, '#ff4444', 8);
+                    if (player.health <= 0) { gameOver(); return; }
+                }
+            }
+
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const bullet = bullets[i];
+                if (bullet.isEnemyBullet) continue;
+
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    const enemy = enemies[j];
+                    if (checkCollision(bullet, enemy)) {
+                        let damageDealt = bullet.damage;
+                        
+                        // Manejar escudo
+                        if (enemy.hasShield && enemy.shieldHealth > 0) {
+                            enemy.shieldHealth -= bullet.damage;
+                            createParticles(enemy.x, enemy.y, '#44aaff', 8);
+                            if (enemy.shieldHealth <= 0) {
+                                damageDealt = Math.abs(enemy.shieldHealth);
+                                enemy.shieldHealth = 0;
+                                showFloatingText(enemy.x, enemy.y, 'ESCUDO ROTO!', '#44aaff');
+                            } else {
+                                damageDealt = 0; // Todo el daño fue absorbido por el escudo
+                            }
+                        }
+                        
+                        enemy.health -= damageDealt;
+                        bullets.splice(i, 1);
+                        createParticles(enemy.x, enemy.y, enemy.color, 5);
+                        if (bullet.isCritical) {
+                            showFloatingText(enemy.x, enemy.y, 'CRIT!', '#f59e0b');
+                            createParticles(enemy.x, enemy.y, '#f59e0b', 8, 6);
+                        }
+                        
+                        if (enemy.health <= 0) {
+                            enemies.splice(j, 1);
+                            addXP(enemy.xp);
+                            game.enemiesKilled++;
+                            
+                            if (enemy.isBoss) {
+                                game.bossesKilled++;
+                                showFloatingText(enemy.x, enemy.y, 'BOSS!', '#8b5cf6');
+                            } else {
+                                showFloatingText(enemy.x, enemy.y, `+${enemy.xp}`, '#4CAF50');
+                            }
+                            
+                            // Habilidad de división
+                            if (enemy.canSplit) {
+                                for (let k = 0; k < enemy.splitCount; k++) {
+                                    const angle = (k / enemy.splitCount) * Math.PI * 2;
+                                    const newX = enemy.x + Math.cos(angle) * 30;
+                                    const newY = enemy.y + Math.sin(angle) * 30;
+                                    const splitEnemy = createEnemy('normal', newX, newY);
+                                    splitEnemy.health = 1;
+                                    splitEnemy.maxHealth = 1;
+                                    splitEnemy.speed *= 1.2; // Un poco más rápido
+                                    splitEnemy.xp = Math.floor(enemy.xp / 2);
+                                    splitEnemy.size = Math.floor(enemy.size * 0.8);
+                                    splitEnemy.color = '#44ff44';
+                                    enemies.push(splitEnemy);
+                                }
+                                showFloatingText(enemy.x, enemy.y, 'SE DIVIDIÓ!', '#44ff44');
+                                createParticles(enemy.x, enemy.y, '#44ff44', 12);
+                                screenShake(3, 300);
+                            }
+                            
+                            if (enemy.explosive) {
+                                for (let k = enemies.length - 1; k >= 0; k--) {
+                                    const otherEnemy = enemies[k];
+                                    if (distance(enemy.x, enemy.y, otherEnemy.x, otherEnemy.y) < 50) {
+                                        otherEnemy.health -= 2;
+                                        if (otherEnemy.health <= 0) {
+                                            enemies.splice(k, 1);
+                                            addXP(otherEnemy.xp);
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            checkAchievements();
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Actualizar vida de rayos (beams) enemigos
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                if (b.isEnemyBullet && b.isBeam) {
+                    b.life -= deltaTime * 1000;
+                    if (b.life <= 0) bullets.splice(i, 1);
+                }
+            }
+
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const bullet = bullets[i];
+                if (!bullet.isEnemyBullet) continue;
+                if (bullet.isBeam) {
+                    // Colisión rayo-segmento contra jugador (círculo)
+                    const x1 = bullet.x1, y1 = bullet.y1, x2 = bullet.x2, y2 = bullet.y2;
+                    const px = player.x, py = player.y;
+                    const A = px - x1, B = py - y1, C = x2 - x1, D = y2 - y1;
+                    const dot = A * C + B * D;
+                    const lenSq = C * C + D * D;
+                    const t = clamp(lenSq ? (dot / lenSq) : 0, 0, 1);
+                    const cx = x1 + C * t, cy = y1 + D * t;
+                    const dist = Math.hypot(px - cx, py - cy);
+                    if (dist < player.size / 2) {
+                        bullet.lastTick = bullet.lastTick || 0;
+                        const nowMs = performance.now();
+                        if (nowMs - bullet.lastTick >= (bullet.tickMs || 150)) {
+                            player.health -= bullet.damage;
+                            bullet.lastTick = nowMs;
+                            showDamageFlash();
+                            createParticles(player.x, player.y, '#ff4444', 3);
+                            updateHUD();
+                            if (player.health <= 0) { gameOver(); return; }
+                        }
+                    }
+                    bullet.life -= deltaTime * 1000;
+                    if (bullet.life <= 0) bullets.splice(i, 1);
+                    continue;
+                }
+                if (checkCollision(bullet, player)) {
+                    player.health -= bullet.damage;
+                    bullets.splice(i, 1);
+                    showDamageFlash();
+                    createParticles(player.x, player.y, '#ff4444', 5);
+                    updateHUD();
+                    if (player.health <= 0) { gameOver(); return; }
+                }
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const particle = particles[i];
+                particle.x += particle.vx * deltaTime;
+                particle.y += particle.vy * deltaTime;
+                particle.life -= deltaTime * 1000;
+                if (particle.life <= 0) particles.splice(i, 1);
+            }
+
+            if (enemies.length === 0 && !game.paused) {
+                if (Date.now() - game.lastWaveTime > 1500) {
+                    if (game.wave < game.maxWaves) {
+                        game.wave++;
+                        spawnWave();
+                        game.lastWaveTime = Date.now();
+                        updateHUD();
+                    } else {
+                        victory();
+                    }
+                }
+            }
+        }
+
+        let lastTime = 0;
+        function gameLoop(currentTime) {
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+            update(deltaTime);
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            renderWeatherBackground();
+            // Dibujar paredes/terreno
+            if (walls.length) {
+                ctx.save();
+                ctx.fillStyle = '#222222';
+                walls.forEach(w => {
+                    ctx.fillRect(w.x, w.y, w.width, w.height);
+                });
+                ctx.restore();
+            }
+
+            particles.forEach(particle => {
+                const alpha = particle.life / particle.maxLife;
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = particle.color;
+                ctx.fillRect(particle.x - particle.size/2, particle.y - particle.size/2, particle.size, particle.size);
+                ctx.restore();
+            });
+
+            enemies.forEach(enemy => {
+                // Dibujar escudo si existe
+                if (enemy.hasShield && enemy.shieldHealth > 0) {
+                    ctx.save();
+                    ctx.strokeStyle = '#44aaff';
+                    ctx.lineWidth = 3;
+                    ctx.globalAlpha = 0.7;
+                    ctx.beginPath();
+                    ctx.arc(enemy.x, enemy.y, enemy.size/2 + 5, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+                
+                // Efectos especiales para ciertos enemigos
+                if (enemy.isSwarm) {
+                    // Efecto de zumbido para enjambre
+                    ctx.save();
+                    ctx.globalAlpha = 0.8;
+                    ctx.fillStyle = enemy.color;
+                    ctx.beginPath();
+                    ctx.arc(enemy.x, enemy.y, enemy.size/2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.globalAlpha = 0.4;
+                    ctx.beginPath();
+                    ctx.arc(enemy.x + Math.sin(Date.now() * 0.01) * 2, enemy.y + Math.cos(Date.now() * 0.01) * 2, enemy.size/2 + 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                } else if (enemy.isKamikaze) {
+                    // Efecto de parpadeo para kamikaze
+                    ctx.save();
+                    ctx.globalAlpha = 0.7 + 0.3 * Math.sin(Date.now() * 0.02);
+                    ctx.fillStyle = enemy.color;
+                    ctx.fillRect(enemy.x - enemy.size/2, enemy.y - enemy.size/2, enemy.size, enemy.size);
+                    ctx.restore();
+                } else if (enemy.canHeal) {
+                    // Efecto de aura curativa
+                    ctx.save();
+                    ctx.globalAlpha = 0.3;
+                    ctx.strokeStyle = '#44ff88';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(enemy.x, enemy.y, enemy.healRange, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                    
+                    ctx.fillStyle = enemy.color;
+                    ctx.fillRect(enemy.x - enemy.size/2, enemy.y - enemy.size/2, enemy.size, enemy.size);
+                } else {
+                    ctx.fillStyle = enemy.color;
+                    switch (enemy.shape) {
+                        case 'circle': {
+                            ctx.beginPath();
+                            ctx.arc(enemy.x, enemy.y, enemy.size/2, 0, Math.PI * 2);
+                            ctx.fill();
+                            break;
+                        }
+                        case 'triangle': {
+                            const r = enemy.size/2;
+                            ctx.beginPath();
+                            ctx.moveTo(enemy.x, enemy.y - r);
+                            ctx.lineTo(enemy.x - r, enemy.y + r);
+                            ctx.lineTo(enemy.x + r, enemy.y + r);
+                            ctx.closePath();
+                            ctx.fill();
+                            break;
+                        }
+                        case 'trapezoid': {
+                            const w = enemy.size;
+                            const h = enemy.size;
+                            const topW = w * 0.6;
+                            ctx.beginPath();
+                            ctx.moveTo(enemy.x - topW/2, enemy.y - h/2);
+                            ctx.lineTo(enemy.x + topW/2, enemy.y - h/2);
+                            ctx.lineTo(enemy.x + w/2, enemy.y + h/2);
+                            ctx.lineTo(enemy.x - w/2, enemy.y + h/2);
+                            ctx.closePath();
+                            ctx.fill();
+                            break;
+                        }
+                        default: {
+                            // rectangle
+                            ctx.fillRect(enemy.x - enemy.size/2, enemy.y - enemy.size/2, enemy.size, enemy.size);
+                        }
+                    }
+                }
+                
+                // Barra de salud
+                if (enemy.maxHealth > 1 || enemy.hasShield || enemy.canHeal) {
+                    const barWidth = enemy.size;
+                    const barHeight = 4;
+                    const barX = enemy.x - barWidth/2;
+                    const barY = enemy.y - enemy.size/2 - 8;
+                    
+                    // Fondo de la barra
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(barX, barY, barWidth, barHeight);
+                    
+                    // Barra de escudo
+                    if (enemy.hasShield && enemy.shieldHealth > 0) {
+                        const shieldPercent = enemy.shieldHealth / enemy.maxShieldHealth;
+                        ctx.fillStyle = '#44aaff';
+                        ctx.fillRect(barX, barY - 6, barWidth * shieldPercent, barHeight);
+                    }
+                    
+                    // Barra de salud
+                    ctx.fillStyle = '#ff4444';
+                    const healthPercent = enemy.health / enemy.maxHealth;
+                    ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
+                }
+            });
+
+            bullets.forEach(bullet => {
+                if (bullet.isEnemyBullet && bullet.isBeam) {
+                    ctx.save();
+                    ctx.strokeStyle = '#ffdd55';
+                    ctx.lineWidth = 4;
+                    ctx.shadowBlur = 12;
+                    ctx.shadowColor = '#ffdd55';
+                    ctx.beginPath();
+                    ctx.moveTo(bullet.x1, bullet.y1);
+                    ctx.lineTo(bullet.x2, bullet.y2);
+                    ctx.stroke();
+                    ctx.restore();
+                    return;
+                }
+                if (bullet.isEnemyBullet) {
+                    if (bullet.isMagic) {
+                        ctx.fillStyle = '#9370db';
+                        ctx.shadowBlur = 10;
+                        ctx.shadowColor = '#9370db';
+                    } else if (bullet.isTentacle) {
+                        ctx.fillStyle = '#2e8b57';
+                    } else if (bullet.isStorm) {
+                        ctx.fillStyle = '#4169e1';
+                        ctx.shadowBlur = 15;
+                        ctx.shadowColor = '#4169e1';
+                    } else {
+                        ctx.fillStyle = '#ff8844';
+                    }
+                } else if (bullet.isCritical) {
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.shadowBlur = 8;
+                    ctx.shadowColor = '#f59e0b';
+                } else {
+                    ctx.fillStyle = '#ffffff';
+                }
+                ctx.fillRect(bullet.x - bullet.size/2, bullet.y - bullet.size/2, bullet.size, bullet.size);
+                ctx.shadowBlur = 0;
+            });
+
+            ctx.fillStyle = '#4488ff';
+            ctx.fillRect(player.x - player.size/2, player.y - player.size/2, player.size, player.size);
+            
+            // Efectos visuales de estado
+            if (player.health < 30) {
+                ctx.save();
+                ctx.globalAlpha = 0.5;
+                ctx.fillStyle = '#ff4444';
+                ctx.fillRect(player.x - player.size/2, player.y - player.size/2, player.size, player.size);
+                ctx.restore();
+            }
+            
+            if (player.poisoned) {
+                ctx.save();
+                ctx.globalAlpha = 0.3;
+                ctx.fillStyle = '#32cd32';
+                ctx.fillRect(player.x - player.size/2, player.y - player.size/2, player.size, player.size);
+                ctx.restore();
+            }
+            
+            if (player.burning) {
+                ctx.save();
+                ctx.globalAlpha = 0.4;
+                ctx.fillStyle = '#ff4500';
+                ctx.fillRect(player.x - player.size/2, player.y - player.size/2, player.size, player.size);
+                ctx.restore();
+            }
+            
+            if (player.stunned) {
+                ctx.save();
+                ctx.globalAlpha = 0.5;
+                ctx.fillStyle = '#ffff00';
+                ctx.fillRect(player.x - player.size/2, player.y - player.size/2, player.size, player.size);
+                ctx.restore();
+            }
+            renderWeatherForeground();
+        }
+
+        // Duplicated game loop removed
+
+        function updateHUD() {
+            const healthPercent = (player.health / player.maxHealth) * 100;
+            document.getElementById('healthBar').style.width = healthPercent + '%';
+            document.getElementById('healthText').textContent = Math.floor(player.health) + '/' + player.maxHealth;
+            const xpPercent = (player.xp / player.xpToNext) * 100;
+            document.getElementById('xpBar').style.width = xpPercent + '%';
+            document.getElementById('xpText').textContent = player.xp + '/' + player.xpToNext;
+            document.getElementById('levelText').textContent = player.level;
+            document.getElementById('scoreText').textContent = game.score;
+            document.getElementById('moneyTextHUD').textContent = game.money;
+            document.getElementById('waveText').textContent = game.wave;
+        }
+
+        function gameOver() {
+            game.running = false;
+            document.getElementById('gameOverText').textContent = `Has llegado a la oleada ${game.wave}`;
+            document.getElementById('gameOverOverlay').classList.add('show');
+        }
+
+        function victory() {
+            game.running = false;
+            document.getElementById('victoryOverlay').classList.add('show');
+        }
+
+        function restartGame() {
+            game.running = true;
+            game.wave = 1;
+            game.score = 0;
+            game.money = 0;
+            game.enemiesKilled = 0;
+            game.bossesKilled = 0;
+            player.x = canvas.width/2;
+            player.y = canvas.height/2;
+            player.health = player.maxHealth;
+            player.level = 1;
+            player.xp = 0;
+            player.xpToNext = 120;
+            player.damage = 1;
+            player.fireRate = 0.3;
+            player.bulletSpeed = 400;
+            player.bulletSize = 4;
+            player.multiShot = 1;
+            player.spreadAngle = 0;
+            player.regeneration = 0;
+            player.speed = 200;
+            player.criticalChance = 0;
+            player.isExplosive = false;
+            player.hasFireTrail = false;
+            player.hasOrbiting = false;
+            
+            // Resetear efectos de estado
+            player.poisoned = false;
+            player.burning = false;
+            player.stunned = false;
+            player.canCollide = true;
+            
+            // Resetear habilidades del jugador
+            Object.keys(playerSkills).forEach(key => {
+                if (typeof playerSkills[key] === 'number') {
+                    playerSkills[key] = 0;
+                } else {
+                    playerSkills[key] = false;
+                }
+            });
+            
+            enemies.length = 0;
+            bullets.length = 0;
+            particles.length = 0;
+            powerUps.length = 0;
+            walls.length = 0;
+            updateTopBarrierVisual();
+            document.getElementById('gameOverOverlay').classList.remove('show');
+            document.getElementById('victoryOverlay').classList.remove('show');
+            document.getElementById('skillOverlay').classList.remove('show');
+            document.getElementById('fusionOverlay').classList.remove('show');
+            updateHUD();
+            spawnWave();
+            game.lastWaveTime = Date.now();
+        }
+
+        function startGame() {
+            document.getElementById('mainMenu').classList.add('hidden');
+            document.getElementById('gameHUD').style.display = 'flex';
+            updateTopBarrierVisual();
+            game.running = true;
+            restartGame();
+        }
+
+        function showInstructions() {
+            document.getElementById('instructionsOverlay').classList.add('show');
+        }
+
+        function hideInstructions() {
+            document.getElementById('instructionsOverlay').classList.remove('show');
+        }
+
+        function backToMenu() {
+            document.getElementById('mainMenu').classList.remove('hidden');
+            document.getElementById('gameHUD').style.display = 'none';
+            game.running = false;
+        }
+
+        function init() {
+            updateHUD();
+            requestAnimationFrame(gameLoop);
+        }
+
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
